@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 640" font-family="sans-serif" font-size="13">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="640" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="500" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#0f172a">Homelab overview (10.0.0.0/24)</text>
+
+  <!-- Workstation -->
+  <rect x="30" y="60" width="270" height="130" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>
+  <text x="165" y="84" text-anchor="middle" font-weight="bold" fill="#0f172a">Workstation "workstation"</text>
+  <text x="165" y="110" text-anchor="middle" fill="#0f172a">Terraform, Ansible</text>
+  <text x="165" y="130" text-anchor="middle" fill="#0f172a">kubectl, flux, sops, age</text>
+  <text x="165" y="156" text-anchor="middle" fill="#475569" font-size="12">~/work/homelab, ~/work/k3s-fleet</text>
+  <text x="165" y="174" text-anchor="middle" fill="#475569" font-size="12">~/.kube/config</text>
+
+  <!-- Proxmox -->
+  <rect x="400" y="60" width="570" height="190" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="685" y="84" text-anchor="middle" font-weight="bold" fill="#0f172a">Proxmox "pve1" 10.0.0.60</text>
+  <g fill="#dbeafe" stroke="#3b82f6">
+    <rect x="412" y="110" width="104" height="120" rx="6"/>
+    <rect x="522" y="110" width="104" height="120" rx="6"/>
+    <rect x="632" y="110" width="104" height="120" rx="6"/>
+    <rect x="742" y="110" width="104" height="120" rx="6"/>
+    <rect x="852" y="110" width="104" height="120" rx="6"/>
+  </g>
+  <g fill="#0f172a" text-anchor="middle">
+    <text x="464" y="136" font-weight="bold">FreeIPA</text><text x="464" y="156" font-size="12">VM 301</text><text x="464" y="174" font-size="12">.31</text><text x="464" y="198" font-size="11" fill="#475569">users, groups</text>
+    <text x="574" y="136" font-weight="bold">Authentik</text><text x="574" y="156" font-size="12">VM 302</text><text x="574" y="174" font-size="12">.32</text><text x="574" y="198" font-size="11" fill="#475569">SSO, MFA</text>
+    <text x="684" y="136" font-weight="bold">Vaultwarden</text><text x="684" y="156" font-size="12">VM 303</text><text x="684" y="174" font-size="12">.33</text><text x="684" y="198" font-size="11" fill="#475569">passwords</text>
+    <text x="794" y="136" font-weight="bold">Caddy</text><text x="794" y="156" font-size="12">VM 304</text><text x="794" y="174" font-size="12">.34</text><text x="794" y="198" font-size="11" fill="#475569">HTTPS proxy</text>
+    <text x="904" y="136" font-weight="bold">yarr stack</text><text x="904" y="156" font-size="12">VM 107</text><text x="904" y="174" font-size="12">.160</text><text x="904" y="198" font-size="11" fill="#475569">media apps</text>
+  </g>
+
+  <!-- NAS -->
+  <rect x="30" y="260" width="270" height="260" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
+  <text x="165" y="284" text-anchor="middle" font-weight="bold" fill="#0f172a">NAS "nas" 10.0.0.225</text>
+  <g fill="#fef3c7" stroke="#d97706">
+    <rect x="48" y="300" width="234" height="62" rx="6"/>
+    <rect x="48" y="372" width="234" height="62" rx="6"/>
+    <rect x="48" y="444" width="234" height="62" rx="6"/>
+  </g>
+  <g fill="#0f172a" text-anchor="middle">
+    <text x="165" y="326" font-weight="bold">bind9 + isc-dhcp</text><text x="165" y="346" font-size="12">DNS for example.com</text>
+    <text x="165" y="398" font-weight="bold">Gitea (Docker)</text><text x="165" y="418" font-size="12">web :3000 / ssh :2222</text>
+    <text x="165" y="470" font-weight="bold">NFS /tank/pishare</text><text x="165" y="490" font-size="12">k3s-backups/ (age-encrypted)</text>
+  </g>
+
+  <!-- Pi cluster -->
+  <rect x="400" y="300" width="570" height="310" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="685" y="324" text-anchor="middle" font-weight="bold" fill="#0f172a">Raspberry Pi K3s cluster</text>
+  <g fill="#dcfce7" stroke="#16a34a">
+    <rect x="411" y="340" width="130" height="120" rx="6"/>
+    <rect x="551" y="340" width="130" height="120" rx="6"/>
+    <rect x="691" y="340" width="130" height="120" rx="6"/>
+    <rect x="831" y="340" width="130" height="120" rx="6"/>
+  </g>
+  <g fill="#0f172a" text-anchor="middle">
+    <text x="476" y="366" font-weight="bold">k3s-1</text><text x="476" y="386" font-size="12">.41</text><text x="476" y="410" font-size="12">control plane</text><text x="476" y="428" font-size="11" fill="#475569">SQLite datastore</text><text x="476" y="446" font-size="11" fill="#475569">tainted</text>
+    <text x="616" y="366" font-weight="bold">k3s-2</text><text x="616" y="386" font-size="12">.42</text><text x="616" y="410" font-size="12">agent</text>
+    <text x="756" y="366" font-weight="bold">k3s-3</text><text x="756" y="386" font-size="12">.43</text><text x="756" y="410" font-size="12">agent</text>
+    <text x="896" y="366" font-weight="bold">k3s-4</text><text x="896" y="386" font-size="12">.44</text><text x="896" y="410" font-size="12">agent</text>
+  </g>
+  <rect x="411" y="480" width="550" height="44" rx="6" fill="#bbf7d0" stroke="#16a34a"/>
+  <text x="686" y="499" text-anchor="middle" font-weight="bold" fill="#0f172a">MetalLB address 10.0.0.50 (L2) -&gt; Traefik</text>
+  <text x="686" y="516" text-anchor="middle" font-size="12" fill="#0f172a">*.k3s.example.com</text>
+  <text x="686" y="552" text-anchor="middle" fill="#0f172a" font-size="12">Flux CD, MetalLB, Traefik, VictoriaMetrics, podinfo, Gitea Actions runners</text>
+  <text x="686" y="574" text-anchor="middle" fill="#475569" font-size="12">Desired state lives in Gitea repo labadmin/k3s-fleet</text>
+
+  <!-- Arrows -->
+  <line x1="300" y1="110" x2="398" y2="110" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="349" y="100" text-anchor="middle" font-size="11" fill="#475569">Terraform</text>
+  <line x1="165" y1="190" x2="165" y2="258" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="172" y="228" font-size="11" fill="#475569">Ansible</text>
+  <line x1="300" y1="395" x2="398" y2="395" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)" transform="translate(0,-10)"/>
+  <text x="349" y="368" text-anchor="middle" font-size="11" fill="#475569">Flux pulls</text>
+  <text x="349" y="381" text-anchor="middle" font-size="11" fill="#475569">(SSH)</text>
+  <line x1="398" y1="470" x2="300" y2="470" stroke="#475569" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+  <text x="349" y="455" text-anchor="middle" font-size="11" fill="#475569">nightly</text>
+  <text x="349" y="466" text-anchor="middle" font-size="11" fill="#475569">backup</text>
+</svg>

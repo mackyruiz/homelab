@@ -58,6 +58,12 @@
     dest: "{{ authentik_dir }}/blueprints/gitea.yaml"
     mode: "0644"
 
+- name: Render OPNsense Authentik blueprint
+  ansible.builtin.template:
+    src: blueprints/opnsense.yaml.j2
+    dest: "{{ authentik_dir }}/blueprints/opnsense.yaml"
+    mode: "0644"
+
 - name: Start Authentik
   community.docker.docker_compose_v2:
     project_src: "{{ authentik_dir }}"
@@ -119,6 +125,18 @@
     status_code: 200
   register: authentik_gitea_blueprint
   until: authentik_gitea_blueprint.status == 200
+  retries: 60
+  delay: 10
+  no_log: true
+
+- name: Wait for the OPNsense blueprint to apply
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ authentik_http_port }}/api/v3/core/applications/opnsense/"
+    headers:
+      Authorization: "Bearer {{ vault_authentik_bootstrap_token }}"
+    status_code: 200
+  register: authentik_opnsense_blueprint
+  until: authentik_opnsense_blueprint.status == 200
   retries: 60
   delay: 10
   no_log: true

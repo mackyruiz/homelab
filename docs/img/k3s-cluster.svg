@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 640" font-family="sans-serif" font-size="13">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="640" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="500" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#0f172a">K3s cluster: request path and typical workload placement</text>
+  <rect x="40" y="55" width="180" height="50" rx="6" fill="#f1f5f9" stroke="#64748b"/>
+  <text x="130" y="76" text-anchor="middle" font-weight="bold" fill="#0f172a">Browser / curl</text>
+  <text x="130" y="94" text-anchor="middle" font-size="12" fill="#475569">podinfo.k3s.example.com</text>
+  <rect x="320" y="55" width="330" height="50" rx="6" fill="#fef3c7" stroke="#d97706"/>
+  <text x="485" y="76" text-anchor="middle" font-weight="bold" fill="#0f172a">bind9 on nas</text>
+  <text x="485" y="94" text-anchor="middle" font-size="12" fill="#0f172a">*.k3s.example.com  A  10.0.0.50</text>
+  <line x1="220" y1="80" x2="318" y2="80" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="269" y="72" text-anchor="middle" font-size="11" fill="#475569">1 lookup</text>
+  <line x1="130" y1="105" x2="130" y2="133" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="138" y="124" font-size="11" fill="#475569">2 HTTP/HTTPS</text>
+  <rect x="40" y="135" width="920" height="46" rx="6" fill="#bbf7d0" stroke="#16a34a"/>
+  <text x="500" y="155" text-anchor="middle" font-weight="bold" fill="#0f172a">MetalLB L2 address 10.0.0.50 (pool .50-.59)</text>
+  <text x="500" y="172" text-anchor="middle" font-size="12" fill="#0f172a">one speaker answers ARP for the address; ports 80 and 443 go to Traefik, which matches the Ingress host and forwards to the pod</text>
+
+  <rect x="40" y="205" width="215" height="330" rx="8" fill="#ffffff" stroke="#334155" stroke-width="1.5"/>
+  <text x="147" y="228" text-anchor="middle" font-weight="bold" fill="#0f172a">k3s-1  10.0.0.41</text>
+  <text x="147" y="246" text-anchor="middle" font-size="11" fill="#475569">control plane, tainted CriticalAddonsOnly</text>
+  <rect x="50" y="262" width="195" height="30" rx="5" fill="#f1f5f9" stroke="#64748b"/>
+  <text x="147" y="281" text-anchor="middle" font-size="12" fill="#0f172a">k3s server + SQLite datastore</text>
+  <rect x="50" y="298" width="195" height="30" rx="5" fill="#f1f5f9" stroke="#64748b"/>
+  <text x="147" y="317" text-anchor="middle" font-size="12" fill="#0f172a">CoreDNS</text>
+  <rect x="50" y="334" width="195" height="30" rx="5" fill="#f1f5f9" stroke="#64748b"/>
+  <text x="147" y="353" text-anchor="middle" font-size="12" fill="#0f172a">metrics-server</text>
+  <rect x="50" y="370" width="195" height="30" rx="5" fill="#f1f5f9" stroke="#64748b"/>
+  <text x="147" y="389" text-anchor="middle" font-size="12" fill="#0f172a">local-path-provisioner</text>
+  <rect x="50" y="406" width="195" height="30" rx="5" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="147" y="425" text-anchor="middle" font-size="12" fill="#0f172a">Traefik (replica)</text>
+  <rect x="50" y="442" width="195" height="30" rx="5" fill="#fef3c7" stroke="#d97706"/>
+  <text x="147" y="461" text-anchor="middle" font-size="12" fill="#0f172a">node-exporter</text>
+  <rect x="50" y="478" width="195" height="30" rx="5" fill="#f1f5f9" stroke="#64748b"/>
+  <text x="147" y="497" text-anchor="middle" font-size="12" fill="#0f172a">k3s-backup.timer, 03:30</text>
+  <rect x="275" y="205" width="215" height="330" rx="8" fill="#ffffff" stroke="#334155" stroke-width="1.5"/>
+  <text x="382" y="228" text-anchor="middle" font-weight="bold" fill="#0f172a">k3s-2  10.0.0.42</text>
+  <text x="382" y="246" text-anchor="middle" font-size="11" fill="#475569">agent</text>
+  <rect x="285" y="262" width="195" height="30" rx="5" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="382" y="281" text-anchor="middle" font-size="12" fill="#0f172a">Traefik (replica)</text>
+  <rect x="285" y="298" width="195" height="30" rx="5" fill="#fef3c7" stroke="#d97706"/>
+  <text x="382" y="317" text-anchor="middle" font-size="12" fill="#0f172a">VMSingle (10Gi PVC)</text>
+  <rect x="285" y="334" width="195" height="30" rx="5" fill="#fce7f3" stroke="#db2777"/>
+  <text x="382" y="353" text-anchor="middle" font-size="12" fill="#0f172a">podinfo</text>
+  <rect x="285" y="370" width="195" height="30" rx="5" fill="#fef3c7" stroke="#d97706"/>
+  <text x="382" y="389" text-anchor="middle" font-size="12" fill="#0f172a">node-exporter</text>
+  <rect x="285" y="406" width="195" height="30" rx="5" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="382" y="425" text-anchor="middle" font-size="12" fill="#0f172a">MetalLB speaker</text>
+  <rect x="285" y="442" width="195" height="30" rx="5" fill="#ede9fe" stroke="#7c3aed"/>
+  <text x="382" y="461" text-anchor="middle" font-size="12" fill="#0f172a">runner (k8s job pods)</text>
+  <rect x="510" y="205" width="215" height="330" rx="8" fill="#ffffff" stroke="#334155" stroke-width="1.5"/>
+  <text x="617" y="228" text-anchor="middle" font-weight="bold" fill="#0f172a">k3s-3  10.0.0.43</text>
+  <text x="617" y="246" text-anchor="middle" font-size="11" fill="#475569">agent</text>
+  <rect x="520" y="262" width="195" height="30" rx="5" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="617" y="281" text-anchor="middle" font-size="12" fill="#0f172a">Flux helm + kustomize ctl</text>
+  <rect x="520" y="298" width="195" height="30" rx="5" fill="#fef3c7" stroke="#d97706"/>
+  <text x="617" y="317" text-anchor="middle" font-size="12" fill="#0f172a">vmagent, kube-state-metrics</text>
+  <rect x="520" y="334" width="195" height="30" rx="5" fill="#ede9fe" stroke="#7c3aed"/>
+  <text x="617" y="353" text-anchor="middle" font-size="12" fill="#0f172a">gitea-runner-1 + dind</text>
+  <rect x="520" y="370" width="195" height="30" rx="5" fill="#fce7f3" stroke="#db2777"/>
+  <text x="617" y="389" text-anchor="middle" font-size="12" fill="#0f172a">podinfo</text>
+  <rect x="520" y="406" width="195" height="30" rx="5" fill="#fef3c7" stroke="#d97706"/>
+  <text x="617" y="425" text-anchor="middle" font-size="12" fill="#0f172a">node-exporter</text>
+  <rect x="520" y="442" width="195" height="30" rx="5" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="617" y="461" text-anchor="middle" font-size="12" fill="#0f172a">MetalLB speaker</text>
+  <rect x="745" y="205" width="215" height="330" rx="8" fill="#ffffff" stroke="#334155" stroke-width="1.5"/>
+  <text x="852" y="228" text-anchor="middle" font-weight="bold" fill="#0f172a">k3s-4  10.0.0.44</text>
+  <text x="852" y="246" text-anchor="middle" font-size="11" fill="#475569">agent</text>
+  <rect x="755" y="262" width="195" height="30" rx="5" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="852" y="281" text-anchor="middle" font-size="12" fill="#0f172a">Flux source + notification ctl</text>
+  <rect x="755" y="298" width="195" height="30" rx="5" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="852" y="317" text-anchor="middle" font-size="12" fill="#0f172a">MetalLB controller</text>
+  <rect x="755" y="334" width="195" height="30" rx="5" fill="#ede9fe" stroke="#7c3aed"/>
+  <text x="852" y="353" text-anchor="middle" font-size="12" fill="#0f172a">gitea-runner-0 + dind</text>
+  <rect x="755" y="370" width="195" height="30" rx="5" fill="#fce7f3" stroke="#db2777"/>
+  <text x="852" y="389" text-anchor="middle" font-size="12" fill="#0f172a">podinfo</text>
+  <rect x="755" y="406" width="195" height="30" rx="5" fill="#fef3c7" stroke="#d97706"/>
+  <text x="852" y="425" text-anchor="middle" font-size="12" fill="#0f172a">node-exporter</text>
+  <rect x="755" y="442" width="195" height="30" rx="5" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="852" y="461" text-anchor="middle" font-size="12" fill="#0f172a">MetalLB speaker</text>
+  <line x1="147" y1="181" x2="147" y2="203" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="382" y1="181" x2="382" y2="203" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="40" y="560" width="16" height="16" rx="3" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="64" y="573" font-size="12" fill="#0f172a">network</text>
+  <rect x="180" y="560" width="16" height="16" rx="3" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="204" y="573" font-size="12" fill="#0f172a">Flux</text>
+  <rect x="320" y="560" width="16" height="16" rx="3" fill="#fef3c7" stroke="#d97706"/>
+  <text x="344" y="573" font-size="12" fill="#0f172a">monitoring</text>
+  <rect x="460" y="560" width="16" height="16" rx="3" fill="#ede9fe" stroke="#7c3aed"/>
+  <text x="484" y="573" font-size="12" fill="#0f172a">Gitea runners</text>
+  <rect x="600" y="560" width="16" height="16" rx="3" fill="#fce7f3" stroke="#db2777"/>
+  <text x="624" y="573" font-size="12" fill="#0f172a">test app</text>
+  <rect x="740" y="560" width="16" height="16" rx="3" fill="#f1f5f9" stroke="#64748b"/>
+  <text x="764" y="573" font-size="12" fill="#0f172a">K3s core</text>
+  <text x="40" y="604" font-size="12" fill="#475569">Placement is a snapshot: the scheduler decides, except k3s-1, which only admits pods that tolerate the CriticalAddonsOnly taint.</text>
+  <text x="40" y="624" font-size="12" fill="#475569">Persistent volumes use the local-path class (node-local SD card). Datastore backups go to the NAS over NFS.</text>
+</svg>

@@ -1,0 +1,29 @@
+---
+# Switching the address drops the SSH connection, so the change runs detached
+# and the rest of the run reconnects by IP (DNS still points at the old lease).
+- name: Pin the static LAN address
+  ansible.builtin.shell: >-
+    nmcli con mod "{{ k3s_nm_connection }}" ipv4.method manual
+    ipv4.addresses {{ k3s_node_ip }}/24 ipv4.gateway {{ k3s_gateway }}
+    ipv4.dns {{ internal_dns_server }} ipv4.dns-search {{ internal_dns_domain }}
+    ipv6.ignore-auto-dns yes
+    && nmcli con up "{{ k3s_nm_connection }}"
+  async: 60
+  poll: 0
+  when: ansible_facts.default_ipv4.address != k3s_node_ip
+
+- name: Connect by IP from now on
+  ansible.builtin.set_fact:
+    ansible_host: "{{ k3s_node_ip }}"
+
+- name: Wait for the host to come back
+  ansible.builtin.wait_for_connection:
+    delay: 10
+    timeout: 180
+
+- name: Re-gather facts
+  ansible.builtin.setup:
+
+- name: Assert the static address is active
+  ansible.builtin.assert:
+    that: ansible_facts.default_ipv4.address == k3s_node_ip

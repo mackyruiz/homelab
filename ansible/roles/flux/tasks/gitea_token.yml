@@ -1,0 +1,23 @@
+---
+# The token stays in Gitea: Flux's deploy key is tied to it. It is not stored
+# in the cluster or the repo. The timestamped name avoids Gitea's
+# duplicate-token-name error on re-bootstrap.
+- name: Generate a Gitea token for the Flux bootstrap
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - -u
+      - git
+      - gitea
+      - gitea
+      - admin
+      - user
+      - generate-access-token
+      - "--username={{ flux_repo_owner }}"
+      - "--token-name=flux-bootstrap-{{ now(utc=true, fmt='%Y%m%d%H%M%S') }}"
+      - --scopes=read:misc,write:repository,write:user
+      - --raw
+  register: flux_gitea_token
+  no_log: true
+  changed_when: true

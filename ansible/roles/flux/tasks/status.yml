@@ -1,0 +1,10 @@
+---
+- name: Check whether Flux is bootstrapped
+  ansible.builtin.command: k3s kubectl -n flux-system get kustomization flux-system
+  register: flux_ks
+  changed_when: false
+  failed_when: false
+
+- name: Record the bootstrap state
+  ansible.builtin.set_fact:
+    flux_bootstrapped: "{{ flux_ks.rc == 0 }}"

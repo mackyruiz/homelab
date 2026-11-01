@@ -1,0 +1,2 @@
+---
+k3s_service: "{{ 'k3s' if inventory_hostname in groups['k3s_server'] else 'k3s-agent' }}"

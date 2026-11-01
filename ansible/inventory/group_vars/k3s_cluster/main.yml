@@ -1,0 +1,10 @@
+---
+k3s_version: "v1.36.5+k3s1"
+k3s_gateway: 10.0.0.1
+k3s_nm_connection: "Wired connection 1"
+k3s_server_fqdn: k3s-1.example.com
+k3s_server_url: "https://{{ hostvars[groups['k3s_server'][0]].k3s_node_ip }}:6443"
+# Public half of vault_k3s_age_key (SOPS recipient and backup encryption).
+k3s_age_public_key: "age1REPLACE_WITH_YOUR_AGE_RECIPIENT"
+k3s_backup_dir: /mnt/pishare/k3s-backups
+k3s_backup_keep: 14

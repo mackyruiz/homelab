@@ -120,4 +120,5 @@ entries:
     attrs:
       name: Vaultwarden
       provider: !KeyOf vaultwarden-provider
-      meta_launch_url: "https://{{ vaultwarden_fqdn }}"
+      # Skips Bitwarden's email/identifier prompt; Vaultwarden ignores the identifier value.
+      meta_launch_url: "https://{{ vaultwarden_fqdn }}/#/sso?identifier=lab"

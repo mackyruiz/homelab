@@ -66,6 +66,9 @@
     project_name: "{{ docker_compose_project_name }}"
     state: "{{ docker_stack_state }}"
 
+- name: Report container health to Uptime Kuma
+  ansible.builtin.include_tasks: kuma_push.yml
+
 - name: Ensure the Homarr SSO admin group exists
   ansible.builtin.command:
     argv: [docker, exec, -i, -e, "HOMARR_ADMIN_GROUP={{ sso_admin_group }}", homarr, node, "-"]

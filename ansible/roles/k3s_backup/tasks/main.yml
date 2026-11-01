@@ -1,0 +1,42 @@
+---
+- name: Check the NFS share is mounted
+  ansible.builtin.command: mountpoint -q /mnt/pishare
+  register: k3s_backup_mount
+  changed_when: false
+  failed_when: false
+
+- name: Fail when the NFS share is missing
+  ansible.builtin.fail:
+    msg: "/mnt/pishare is not mounted; run playbooks/pis.yml first"
+  when: k3s_backup_mount.rc != 0
+
+- name: Install backup tooling
+  ansible.builtin.apt:
+    name: [sqlite3, age]
+    state: present
+    force_apt_get: true
+
+- name: Install the backup script
+  ansible.builtin.template:
+    src: k3s-backup.sh.j2
+    dest: /usr/local/sbin/k3s-backup
+    mode: "0750"
+
+- name: Install the backup service
+  ansible.builtin.template:
+    src: k3s-backup.service.j2
+    dest: /etc/systemd/system/k3s-backup.service
+    mode: "0644"
+
+- name: Install the backup timer
+  ansible.builtin.copy:
+    src: k3s-backup.timer
+    dest: /etc/systemd/system/k3s-backup.timer
+    mode: "0644"
+
+- name: Enable the backup timer
+  ansible.builtin.systemd_service:
+    name: k3s-backup.timer
+    enabled: true
+    state: started
+    daemon_reload: true

@@ -1,0 +1,13 @@
+---
+- name: Pin the static LAN address
+  ansible.builtin.include_tasks:
+    file: network.yml
+    apply:
+      tags: k3s_network
+  tags: k3s_network
+
+- name: Enable the memory cgroup
+  ansible.builtin.include_tasks: cgroups.yml
+
+- name: Install K3s
+  ansible.builtin.include_tasks: install.yml

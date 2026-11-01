@@ -1,0 +1,79 @@
+---
+- name: K3s server
+  hosts: k3s_server
+  become: true
+  roles:
+    - k3s
+
+- name: K3s agents
+  hosts: k3s_agents
+  become: true
+  roles:
+    - k3s
+
+- name: K3s cluster checks, backup and kubeconfig
+  hosts: k3s_server
+  become: true
+  tasks:
+    - name: Wait for all nodes to be Ready
+      ansible.builtin.command: k3s kubectl wait --for=condition=Ready nodes --all --timeout=600s
+      changed_when: false
+
+    - name: List nodes
+      ansible.builtin.command: k3s kubectl get nodes -o name
+      register: k3s_nodes
+      changed_when: false
+
+    - name: Assert every inventory node joined
+      ansible.builtin.assert:
+        that: k3s_nodes.stdout_lines | length == groups['k3s_cluster'] | length
+
+    - name: Set up datastore backups
+      ansible.builtin.include_role:
+        name: k3s_backup
+
+    - name: Read the kubeconfig
+      ansible.builtin.slurp:
+        src: /etc/rancher/k3s/k3s.yaml
+      register: k3s_kubeconfig
+      no_log: true
+
+    - name: Create ~/.kube on the controller
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'HOME') }}/.kube"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+
+    - name: Write the kubeconfig on the controller
+      ansible.builtin.copy:
+        content: "{{ k3s_kubeconfig.content | b64decode | replace('https://127.0.0.1:6443', 'https://' ~ k3s_server_fqdn ~ ':6443') }}"
+        dest: "{{ lookup('env', 'HOME') }}/.kube/config"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Check Flux state
+      ansible.builtin.include_role:
+        name: flux
+        tasks_from: status
+
+- name: Gitea token for Flux bootstrap
+  hosts: gitea_servers
+  become: true
+  tasks:
+    - name: Generate the token
+      ansible.builtin.include_role:
+        name: flux
+        tasks_from: gitea_token
+      when: not hostvars[groups['k3s_server'][0]].flux_bootstrapped
+
+- name: Flux bootstrap
+  hosts: k3s_server
+  become: true
+  tasks:
+    - name: Bootstrap Flux
+      ansible.builtin.include_role:
+        name: flux

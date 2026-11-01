@@ -1,0 +1,22 @@
+---
+- name: Enable the memory cgroup on the kernel command line
+  ansible.builtin.replace:
+    path: /boot/firmware/cmdline.txt
+    regexp: '^(?!.*\bcgroup_enable=memory\b)(.*?)\s*$'
+    replace: '\1 cgroup_memory=1 cgroup_enable=memory'
+  register: k3s_cmdline
+
+- name: Reboot to apply the kernel command line
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+  when: k3s_cmdline is changed
+
+- name: Read available cgroup controllers
+  ansible.builtin.command: cat /sys/fs/cgroup/cgroup.controllers
+  register: k3s_cgroups
+  changed_when: false
+
+- name: Assert the memory cgroup is enabled
+  ansible.builtin.assert:
+    that: "'memory' in k3s_cgroups.stdout.split()"
+    fail_msg: "memory cgroup still disabled; check /boot/firmware/cmdline.txt"

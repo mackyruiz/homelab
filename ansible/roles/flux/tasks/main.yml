@@ -1,0 +1,43 @@
+---
+- name: Read the installed Flux CLI version
+  ansible.builtin.command: flux --version
+  register: flux_cli
+  failed_when: false
+  changed_when: false
+
+- name: Install the Flux CLI
+  ansible.builtin.unarchive:
+    src: "https://github.com/fluxcd/flux2/releases/download/v{{ flux_version }}/flux_{{ flux_version }}_linux_arm64.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    include: [flux]
+    mode: "0755"
+  when: flux_version not in (flux_cli.stdout | default(''))
+
+# --ssh-hostname: Gitea's SSH listens on nas:2222; gitea.example.com is Caddy.
+- name: Bootstrap Flux from Gitea
+  ansible.builtin.command: >-
+    flux bootstrap gitea
+    --hostname={{ gitea_fqdn }}
+    --owner={{ flux_repo_owner }}
+    --repository={{ flux_repo_name }}
+    --personal --private=true
+    --branch=main
+    --path={{ flux_cluster_path }}
+    --ssh-hostname={{ hostvars[groups['gitea_servers'][0]].ansible_host }}:2222
+  environment:
+    GITEA_TOKEN: "{{ hostvars[groups['gitea_servers'][0]].flux_gitea_token.stdout }}"
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: not flux_bootstrapped
+  no_log: true
+
+- name: Install the SOPS age key for Flux
+  ansible.builtin.shell: >-
+    k3s kubectl -n flux-system create secret generic sops-age
+    --from-file=age.agekey=/dev/stdin --dry-run=client -o yaml
+    | k3s kubectl apply -f -
+  args:
+    stdin: "{{ vault_k3s_age_key }}"
+  register: flux_sops
+  no_log: true
+  changed_when: "'unchanged' not in flux_sops.stdout"

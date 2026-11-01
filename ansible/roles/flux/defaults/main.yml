@@ -1,0 +1,5 @@
+---
+flux_version: "2.10.0"
+flux_repo_owner: labadmin
+flux_repo_name: k3s-fleet
+flux_cluster_path: clusters/pi

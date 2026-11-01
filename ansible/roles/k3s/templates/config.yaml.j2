@@ -1,0 +1,19 @@
+# Managed by Ansible (role k3s)
+token: "{{ vault_k3s_token }}"
+node-name: "{{ inventory_hostname }}"
+node-ip: "{{ k3s_node_ip }}"
+resolv-conf: /etc/rancher/k3s/resolv.conf
+{% if inventory_hostname in groups['k3s_server'] %}
+write-kubeconfig-mode: "0600"
+tls-san:
+  - "{{ k3s_server_fqdn }}"
+  - "{{ k3s_node_ip }}"
+# Dedicated control plane on an SD card: only critical add-ons run here.
+node-taint:
+  - "CriticalAddonsOnly=true:NoExecute"
+# MetalLB (managed by Flux) provides LoadBalancer addresses instead of ServiceLB.
+disable:
+  - servicelb
+{% else %}
+server: "{{ k3s_server_url }}"
+{% endif %}

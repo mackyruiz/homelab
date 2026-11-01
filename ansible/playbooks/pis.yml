@@ -24,8 +24,3 @@
         force_apt_get: true
   roles:
     - nfs_mount
-  tasks:
-    - name: Install Raspberry Pi packages
-      ansible.builtin.apt:
-        name: linux-modules-extra-raspi
-        state: present

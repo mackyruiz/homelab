@@ -48,3 +48,8 @@
 	import godaddy_tls
 	reverse_proxy {{ hostvars[groups['gitea_servers'][0]].ansible_host }}:{{ gitea_http_port }}
 }
+
+{{ uptime_kuma_fqdn }} {
+	import godaddy_tls
+	reverse_proxy {{ hostvars[groups['uptime_kuma_servers'][0]].ansible_host }}:{{ uptime_kuma_http_port }}
+}

@@ -18,11 +18,12 @@ authentik_fqdn: auth.example.com
 
 # Yarr web UIs that Caddy publishes behind Authentik forward auth.
 # port_var names the yarr group variable holding the published host port.
+# health_path is the only path Authentik lets through without login (for Uptime Kuma).
 yarr_forward_auth_apps:
-  - { slug: sonarr, name: Sonarr, fqdn: sonarr.example.com, port_var: sonarr_port }
-  - { slug: radarr, name: Radarr, fqdn: radarr.example.com, port_var: radarr_port }
-  - { slug: prowlarr, name: Prowlarr, fqdn: prowlarr.example.com, port_var: prowlarr_port }
-  - { slug: qbittorrent, name: qBittorrent, fqdn: qbittorrent.example.com, port_var: qbittorrent_webui_port }
+  - { slug: sonarr, name: Sonarr, fqdn: sonarr.example.com, port_var: sonarr_port, health_path: /ping }
+  - { slug: radarr, name: Radarr, fqdn: radarr.example.com, port_var: radarr_port, health_path: /ping }
+  - { slug: prowlarr, name: Prowlarr, fqdn: prowlarr.example.com, port_var: prowlarr_port, health_path: /ping }
+  - { slug: qbittorrent, name: qBittorrent, fqdn: qbittorrent.example.com, port_var: qbittorrent_webui_port, health_path: /api/v2/app/version }
 homarr_fqdn: homarr.example.com
 
 # FreeIPA
@@ -39,7 +40,14 @@ gitea_fqdn: gitea.example.com
 gitea_http_port: 3000
 gitea_oauth_source_name: authentik
 
-# Members of this FreeIPA/Authentik group become admins in Gitea and Homarr.
+uptime_kuma_fqdn: uptime.example.com
+uptime_kuma_http_port: 3001
+
+# OPNsense WebGUI (router). Base URL registered at Authentik and in os-sso; include
+# the port if the GUI does not listen on 443.
+opnsense_gui_url: https://10.0.0.1
+
+# Members of this FreeIPA/Authentik group become admins in Gitea, Homarr and OPNsense.
 sso_admin_group: lab-admins
 # Authentik username -> existing local Gitea username. Gitea links the SSO login
 # to the Gitea account of that name on first sign-in (ACCOUNT_LINKING=auto).

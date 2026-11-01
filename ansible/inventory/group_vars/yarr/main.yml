@@ -52,3 +52,8 @@ firewall_allowed_tcp_ports:
 yarr_sso_proxy_ip: "{{ hostvars[groups['caddy_servers'][0]].ansible_host }}"
 yarr_sso_locked_ports: "{{ yarr_forward_auth_apps | map(attribute='port_var') | map('extract', hostvars[inventory_hostname]) | list }}"
 yarr_docker_bridge_cidr: "172.16.0.0/12"
+
+# Containers with no web endpoint; their Docker health is pushed to Uptime Kuma.
+yarr_kuma_push_containers:
+  - { container: gluetun, token_var: vault_uptime_kuma_push_token_gluetun }
+  - { container: watchtower, token_var: vault_uptime_kuma_push_token_watchtower }
