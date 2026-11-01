@@ -1,0 +1,6 @@
+---
+- name: Uptime Kuma
+  hosts: uptime_kuma_servers
+  become: true
+  roles:
+    - uptime_kuma

@@ -1,0 +1,75 @@
+---
+# Every monitor Uptime Kuma runs. Ansible renders each item to
+# static-monitors/<id>.json; AutoKuma syncs those files into Kuma and deletes
+# monitors whose file is gone. parent_name is the id of a group item.
+# Unset keys come from the role defaults (uptime_kuma_monitor_defaults, and
+# uptime_kuma_http_defaults for http/keyword).
+#
+# Deliberately not monitored:
+#   - nas and Kuma itself: they cannot observe their own outage.
+#   - Stopped VMs (100-106, 108-110, LXC 105).
+#   - Flux, VictoriaMetrics, Gitea runners: no network endpoint; cluster
+#     metrics belong to VictoriaMetrics.
+#   - Stash, Cockpit, threat-intel-feed: declined.
+uptime_kuma_monitors:
+  - { id: hosts, type: group, name: Hosts }
+  - { id: identity, type: group, name: Identity & edge }
+  - { id: nas, type: group, name: NAS (nas) }
+  - { id: media, type: group, name: Media (yarr) }
+  - { id: platform, type: group, name: Proxmox & K3s }
+
+  # Hosts
+  - { id: host-pve1, type: ping, name: pve1 (Proxmox), parent_name: hosts, hostname: 10.0.0.60 }
+  - { id: host-freeipa, type: ping, name: freeipa (VM 301), parent_name: hosts, hostname: 10.0.0.31 }
+  - { id: host-authentik, type: ping, name: authentik (VM 302), parent_name: hosts, hostname: 10.0.0.32 }
+  - { id: host-vaultwarden, type: ping, name: vaultwarden (VM 303), parent_name: hosts, hostname: 10.0.0.33 }
+  - { id: host-caddy, type: ping, name: caddy (VM 304), parent_name: hosts, hostname: 10.0.0.34 }
+  - { id: host-yarr, type: ping, name: yarr (VM 107), parent_name: hosts, hostname: 10.0.0.160 }
+  - { id: host-k3s-1, type: ping, name: k3s-1 (control plane), parent_name: hosts, hostname: 10.0.0.41 }
+  - { id: host-k3s-2, type: ping, name: k3s-2, parent_name: hosts, hostname: 10.0.0.42 }
+  - { id: host-k3s-3, type: ping, name: k3s-3, parent_name: hosts, hostname: 10.0.0.43 }
+  - { id: host-k3s-4, type: ping, name: k3s-4, parent_name: hosts, hostname: 10.0.0.44 }
+
+  # Identity & edge
+  # ignore_tls: the IPA CA is not in Kuma's trust store.
+  - { id: freeipa-web, type: http, name: FreeIPA web UI, parent_name: identity, url: "https://freeipa.example.com/ipa/ui/", ignore_tls: true }
+  - { id: freeipa-ldaps, type: port, name: FreeIPA LDAPS, parent_name: identity, hostname: 10.0.0.31, port: 636 }
+  - { id: freeipa-kerberos, type: port, name: FreeIPA Kerberos, parent_name: identity, hostname: 10.0.0.31, port: 88 }
+  - { id: authentik-direct, type: http, name: Authentik (direct), parent_name: identity, url: "http://10.0.0.32:9000/-/health/ready/" }
+  - { id: authentik-https, type: http, name: Authentik (auth.example.com), parent_name: identity, url: "https://auth.example.com/-/health/live/" }
+  - { id: vaultwarden-direct, type: http, name: Vaultwarden (direct), parent_name: identity, url: "http://10.0.0.33:8000/alive" }
+  - { id: vaultwarden-https, type: http, name: Vaultwarden (vault.example.com), parent_name: identity, url: "https://vault.example.com/alive" }
+  - { id: caddy-https, type: port, name: Caddy HTTPS listener, parent_name: identity, hostname: 10.0.0.34, port: 443 }
+
+  # NAS (nas)
+  - { id: bind9, type: dns, name: bind9 (example.com), parent_name: nas, hostname: auth.example.com, dns_resolve_server: 10.0.0.225, dns_resolve_type: A, port: 53 }
+  - { id: nfs, type: port, name: NFS, parent_name: nas, hostname: 10.0.0.225, port: 2049 }
+  - { id: samba, type: port, name: Samba, parent_name: nas, hostname: 10.0.0.225, port: 445 }
+  - { id: gitea-direct, type: http, name: Gitea (direct), parent_name: nas, url: "http://10.0.0.225:3000/api/healthz" }
+  - { id: gitea-https, type: http, name: Gitea (gitea.example.com), parent_name: nas, url: "https://gitea.example.com/api/healthz" }
+  - { id: gitea-ssh, type: port, name: Gitea SSH (Flux source), parent_name: nas, hostname: 10.0.0.225, port: 2222 }
+
+  # Media (yarr)
+  # sonarr/radarr/prowlarr/qbittorrent: only health_path (yarr_forward_auth_apps)
+  # is reachable through Authentik without login.
+  - { id: plex, type: http, name: Plex, parent_name: media, url: "http://10.0.0.160:32400/identity" }
+  - { id: sonarr, type: http, name: Sonarr, parent_name: media, url: "https://sonarr.example.com/ping" }
+  - { id: radarr, type: http, name: Radarr, parent_name: media, url: "https://radarr.example.com/ping" }
+  - { id: prowlarr, type: http, name: Prowlarr, parent_name: media, url: "https://prowlarr.example.com/ping" }
+  - { id: qbittorrent, type: http, name: qBittorrent, parent_name: media, url: "https://qbittorrent.example.com/api/v2/app/version" }
+  - { id: homarr, type: http, name: Homarr, parent_name: media, url: "https://homarr.example.com/api/health/live" }
+  - { id: flaresolverr, type: keyword, name: FlareSolverr, parent_name: media, url: "http://10.0.0.160:8191/", keyword: FlareSolverr is ready }
+  # Pushed by the kuma-push timer on yarr (yarr_kuma_push_containers).
+  - { id: gluetun, type: push, name: Gluetun VPN (container health), parent_name: media, push_token: "{{ vault_uptime_kuma_push_token_gluetun }}", interval: 120, max_retries: 1 }
+  - { id: watchtower, type: push, name: Watchtower (container health), parent_name: media, push_token: "{{ vault_uptime_kuma_push_token_watchtower }}", interval: 120, max_retries: 1 }
+
+  # Proxmox & K3s
+  - { id: proxmox-web, type: http, name: Proxmox web/API, parent_name: platform, url: "https://10.0.0.60:8006/", ignore_tls: true }
+  # /readyz answers 401 anonymously, so a TCP check is used.
+  - { id: k3s-api, type: port, name: K3s API server, parent_name: platform, hostname: 10.0.0.41, port: 6443 }
+  - id: k3s-ingress
+    type: http
+    name: K3s ingress (Traefik → podinfo)
+    parent_name: platform
+    url: "http://podinfo.k3s.example.com/healthz"
+    description: Probes MetalLB + Traefik via the podinfo demo app; repoint if podinfo is removed

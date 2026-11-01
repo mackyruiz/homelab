@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Pushes the Docker health of yarr containers that have no web endpoint to
+# their Uptime Kuma push monitors.
+set -u
+{% set kuma = hostvars[groups['uptime_kuma_servers'][0]] %}
+base="http://{{ kuma.ansible_host }}:{{ uptime_kuma_http_port }}/api/push"
+
+report() {
+  local token=$1 container=$2 state status
+  state=$(docker inspect -f '{% raw %}{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}{% endraw %}' "$container" 2>/dev/null) || state=missing
+  if [ "$state" = healthy ]; then status=up; else status=down; fi
+  curl -fsS -m 10 -o /dev/null "$base/$token?status=$status&msg=$state" || echo "push for $container failed" >&2
+}
+
+{% for item in yarr_kuma_push_containers %}
+report "{{ kuma[item.token_var] }}" {{ item.container }}
+{% endfor %}

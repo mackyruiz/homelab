@@ -1,0 +1,27 @@
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:{{ uptime_kuma_tag }}
+    container_name: uptime-kuma
+    environment:
+      UPTIME_KUMA_DB_TYPE: sqlite
+    ports:
+      - "{{ uptime_kuma_http_port }}:3001"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  autokuma:
+    image: ghcr.io/bigboot/autokuma:{{ autokuma_tag }}
+    container_name: autokuma
+    env_file: .env
+    environment:
+      AUTOKUMA__KUMA__URL: http://uptime-kuma:3001
+      AUTOKUMA__DOCKER__ENABLED: "false"
+      AUTOKUMA__STATIC_MONITORS: /autokuma/static-monitors
+      AUTOKUMA__ON_DELETE: delete
+    volumes:
+      - ./static-monitors:/autokuma/static-monitors:ro
+      - ./autokuma-data:/data
+    depends_on:
+      - uptime-kuma
+    restart: unless-stopped

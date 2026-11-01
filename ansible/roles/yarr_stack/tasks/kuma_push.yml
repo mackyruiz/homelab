@@ -1,0 +1,26 @@
+---
+- name: Install the Uptime Kuma push script
+  ansible.builtin.template:
+    src: kuma-push.sh.j2
+    dest: /usr/local/sbin/kuma-push
+    mode: "0700"
+  diff: false
+
+- name: Install the Uptime Kuma push service
+  ansible.builtin.copy:
+    src: kuma-push.service
+    dest: /etc/systemd/system/kuma-push.service
+    mode: "0644"
+
+- name: Install the Uptime Kuma push timer
+  ansible.builtin.copy:
+    src: kuma-push.timer
+    dest: /etc/systemd/system/kuma-push.timer
+    mode: "0644"
+
+- name: Enable the Uptime Kuma push timer
+  ansible.builtin.systemd_service:
+    name: kuma-push.timer
+    enabled: true
+    state: started
+    daemon_reload: true

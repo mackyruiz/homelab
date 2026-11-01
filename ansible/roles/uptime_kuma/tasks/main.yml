@@ -1,0 +1,85 @@
+---
+- name: Create Uptime Kuma directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ uptime_kuma_dir }}", mode: "0755" }
+    - { path: "{{ uptime_kuma_dir }}/data", mode: "0755" }
+    - { path: "{{ uptime_kuma_dir }}/autokuma-data", mode: "0700" }
+    - { path: "{{ uptime_kuma_dir }}/static-monitors", mode: "0750" }
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Render Uptime Kuma environment file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ uptime_kuma_dir }}/.env"
+    mode: "0600"
+  diff: false
+
+- name: Render Uptime Kuma compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ uptime_kuma_dir }}/docker-compose.yml"
+    mode: "0644"
+
+- name: Render AutoKuma static monitors
+  ansible.builtin.copy:
+    dest: "{{ uptime_kuma_dir }}/static-monitors/{{ item.id }}.json"
+    content: >
+      {{ ((item.type == 'group') | ternary({}, uptime_kuma_monitor_defaults))
+      | combine((item.type in ['http', 'keyword']) | ternary(uptime_kuma_http_defaults, {}))
+      | combine(item | dict2items | rejectattr('key', 'eq', 'id') | items2dict)
+      | to_nice_json }}
+    mode: "0640"
+  loop: "{{ uptime_kuma_monitors }}"
+  loop_control:
+    label: "{{ item.id }}"
+  diff: false
+
+- name: Find rendered static monitors
+  ansible.builtin.find:
+    paths: "{{ uptime_kuma_dir }}/static-monitors"
+    patterns: "*.json"
+  register: uptime_kuma_rendered
+
+- name: Remove static monitors that are no longer defined
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ uptime_kuma_rendered.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: item.path | basename | splitext | first not in (uptime_kuma_monitors | map(attribute='id') | list)
+
+- name: Start Uptime Kuma
+  community.docker.docker_compose_v2:
+    project_src: "{{ uptime_kuma_dir }}"
+    project_name: uptime-kuma
+    state: present
+
+- name: Wait for Uptime Kuma
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ uptime_kuma_http_port }}/api/entry-page"
+    status_code: 200
+  register: uptime_kuma_ready
+  until: uptime_kuma_ready.status == 200
+  retries: 30
+  delay: 5
+
+- name: Create the Uptime Kuma admin
+  ansible.builtin.command:
+    argv: [docker, exec, -i, -e, KUMA_USERNAME, -e, KUMA_PASSWORD, uptime-kuma, node, "-"]
+    stdin: "{{ lookup('ansible.builtin.file', 'uptime-kuma-setup-admin.js') }}"
+  environment:
+    KUMA_USERNAME: "{{ uptime_kuma_admin_user }}"
+    KUMA_PASSWORD: "{{ vault_uptime_kuma_admin_password }}"
+  register: uptime_kuma_admin
+  until: uptime_kuma_admin.rc == 0
+  retries: 20
+  delay: 3
+  changed_when: uptime_kuma_admin.stdout | trim == 'changed'
+  failed_when: uptime_kuma_admin.rc not in [0, 3]
+  no_log: true

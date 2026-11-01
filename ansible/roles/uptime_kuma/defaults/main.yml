@@ -1,0 +1,9 @@
+---
+uptime_kuma_dir: /opt/uptime-kuma
+uptime_kuma_tag: "2.5.9-slim"
+autokuma_tag: "2.0.0"
+uptime_kuma_admin_user: "{{ admin_user }}"
+# Applied to every non-group static monitor; per-monitor keys win.
+uptime_kuma_monitor_defaults: { interval: 60, retry_interval: 30, max_retries: 2 }
+# Redirects are failures: a forward-auth 302 to Authentik must not count as up.
+uptime_kuma_http_defaults: { max_redirects: 0 }
