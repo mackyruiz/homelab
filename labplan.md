@@ -190,6 +190,3 @@ This establishes a stable foundation before introducing autonomous agents.
 | Resource sizing is a guess         | Over- or under-provisioned VMs                     | Measure memory after deployment and adjust                          |
 
 ## 10. Open decisions
-
-- **Tailscale coordination:** hosted Tailscale or self-hosted Headscale.
-  - Recommendation: hosted at first, so remote recovery does not depend on another self-hosted service.
