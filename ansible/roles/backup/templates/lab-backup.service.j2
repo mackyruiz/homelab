@@ -1,0 +1,12 @@
+[Unit]
+Description=Back up {{ backup_name }} to {{ backup_dest }}
+{% if backup_after | length > 0 %}
+After={{ backup_after }}
+{% endif %}
+{% if backup_requires_mount | length > 0 %}
+RequiresMountsFor={{ backup_requires_mount }}
+{% endif %}
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/lab-backup

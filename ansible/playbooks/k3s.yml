@@ -30,7 +30,7 @@
 
     - name: Set up datastore backups
       ansible.builtin.include_role:
-        name: k3s_backup
+        name: backup
 
     - name: Read the kubeconfig
       ansible.builtin.slurp:

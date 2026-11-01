@@ -10,7 +10,6 @@
 #   - Stopped VMs (100-106, 108-110, LXC 105).
 #   - Flux, VictoriaMetrics, Gitea runners: no network endpoint; cluster
 #     metrics belong to VictoriaMetrics.
-#   - Stash, Cockpit, threat-intel-feed: declined.
 uptime_kuma_monitors:
   - { id: hosts, type: group, name: Hosts }
   - { id: identity, type: group, name: Identity & edge }

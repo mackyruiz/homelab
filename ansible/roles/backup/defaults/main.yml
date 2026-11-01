@@ -1,0 +1,9 @@
+---
+backup_name: "{{ inventory_hostname }}" # archive prefix: <name>-<stamp>.tar.gz.age
+backup_dest: "" # required
+backup_keep: 14
+backup_steps: [] # required; shell lines that fill "$work"
+backup_packages: [age]
+backup_on_calendar: "*-*-* 03:30:00"
+backup_after: "" # systemd After=
+backup_requires_mount: "" # path that must be a mountpoint

@@ -1,8 +1,0 @@
-[Unit]
-Description=Back up the K3s datastore
-After=k3s.service
-RequiresMountsFor={{ k3s_backup_dir | dirname }}
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/sbin/k3s-backup

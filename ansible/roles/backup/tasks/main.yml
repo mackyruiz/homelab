@@ -1,0 +1,62 @@
+---
+- name: Check backup inputs
+  ansible.builtin.assert:
+    that:
+      - backup_dest | length > 0
+      - backup_steps | length > 0
+      - backup_age_public_key is defined
+    quiet: true
+
+- name: Check the backup destination is mounted
+  ansible.builtin.command: "mountpoint -q {{ backup_requires_mount }}"
+  register: backup_mount
+  changed_when: false
+  failed_when: false
+  when: backup_requires_mount | length > 0
+
+- name: Fail when the backup destination is missing
+  ansible.builtin.fail:
+    msg: "{{ backup_requires_mount }} is not mounted; run playbooks/backups.yml (Pis: playbooks/pis.yml) first"
+  when:
+    - backup_requires_mount | length > 0
+    - backup_mount.rc != 0
+
+- name: Install backup tooling (Debian)
+  ansible.builtin.apt:
+    name: "{{ backup_packages }}"
+    state: present
+    force_apt_get: true
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Install backup tooling (RedHat)
+  ansible.builtin.dnf:
+    name: "{{ backup_packages }}"
+    state: present
+  when: ansible_facts.os_family == 'RedHat'
+
+- name: Install the backup script
+  ansible.builtin.template:
+    src: lab-backup.sh.j2
+    dest: /usr/local/sbin/lab-backup
+    mode: "0750"
+
+- name: Install the backup service
+  ansible.builtin.template:
+    src: lab-backup.service.j2
+    dest: /etc/systemd/system/lab-backup.service
+    mode: "0644"
+
+- name: Install the backup timer
+  ansible.builtin.template:
+    src: lab-backup.timer.j2
+    dest: /etc/systemd/system/lab-backup.timer
+    mode: "0644"
+
+- name: Enable the backup timer
+  ansible.builtin.systemd_service:
+    name: lab-backup.timer
+    enabled: true
+    state: started
+    daemon_reload: true

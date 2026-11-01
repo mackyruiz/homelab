@@ -2,6 +2,8 @@
 
 Four Raspberry Pis run K3s. Flux CD deploys everything in the cluster from the Gitea repo `labadmin/k3s-fleet`. A Git commit is the only deployment step.
 
+Other lab services: [services/README.md](services/README.md).
+
 ![Homelab overview](img/lab-overview.svg)
 
 ## At a glance
@@ -17,7 +19,7 @@ Four Raspberry Pis run K3s. Flux CD deploys everything in the cluster from the G
 | VictoriaMetrics k8s-stack `0.97.0` | Metrics, 30 day retention, no Grafana, no alerting | `k3s-fleet/infrastructure/monitoring` |
 | podinfo `6.17.0` | Test application (SOPS secret, 3 replicas, ingress) | `k3s-fleet/apps/podinfo` |
 | Gitea Actions runners | Two runners, see [Gitea Actions runners](#gitea-actions-runners) | `k3s-fleet/apps/gitea-runner*` |
-| Datastore backup | Nightly, age-encrypted, to the NAS | `ansible/roles/k3s_backup` |
+| Datastore backup | Nightly, age-encrypted, to the NAS | `ansible/roles/backup` |
 
 Two repos hold the work:
 
@@ -39,7 +41,7 @@ Two repos hold the work:
 ```mermaid
 flowchart TD
     A["Play 1: k3s_server (k3s-1)<br/>role k3s"] --> B["Play 2: k3s_agents (k3s-2..4)<br/>role k3s"]
-    B --> C["Play 3: k3s-1 checks<br/>all nodes Ready, role k3s_backup,<br/>kubeconfig to ~/.kube/config, Flux status"]
+    B --> C["Play 3: k3s-1 checks<br/>all nodes Ready, role backup,<br/>kubeconfig to ~/.kube/config, Flux status"]
     C --> D{"Flux already<br/>bootstrapped?"}
     D -- no --> E["Play 4: nas<br/>generate a Gitea token"]
     E --> F["Play 5: k3s-1<br/>flux bootstrap gitea,<br/>sops-age secret"]
@@ -165,7 +167,7 @@ One age key does two jobs. Its public half encrypts Secrets in `k3s-fleet` and t
 flowchart LR
     V["ansible vault<br/>group_vars/k3s_cluster/vault.yml<br/>vault_k3s_age_key"] -->|"flux role"| S["Secret sops-age<br/>namespace flux-system"]
     S -->|"decryption.secretRef"| K["kustomize-controller<br/>decrypts at apply time"]
-    P["public key<br/>.sops.yaml and k3s_age_public_key"] -->|"sops --encrypt"| F["secret.sops.yaml in Git<br/>only data and stringData encrypted"]
+    P["public key<br/>.sops.yaml and backup_age_public_key"] -->|"sops --encrypt"| F["secret.sops.yaml in Git<br/>only data and stringData encrypted"]
     F --> K
     P -->|"age -r"| B["backups on the NAS"]
 ```
@@ -250,7 +252,7 @@ The `publish` workflow (`.gitea/workflows/publish.yml`) mirrors this repo to Git
 
 ```mermaid
 flowchart LR
-    T["k3s-backup.timer<br/>03:30 daily"] --> S["/usr/local/sbin/k3s-backup"]
+    T["lab-backup.timer<br/>03:30 daily"] --> S["/usr/local/sbin/lab-backup"]
     S --> Q["sqlite3 .backup of state.db<br/>plus the server token"]
     Q --> X["tar, then age -r public key"]
     X --> N["/mnt/pishare/k3s-backups/<br/>k3s-STAMP.tar.gz.age<br/>NFS on nas, keeps 14"]
@@ -259,7 +261,7 @@ flowchart LR
 The share is world-readable, so every archive is encrypted. State and token go together because a restore needs both. Run one now and check it:
 
 ```bash
-ssh labadmin@k3s-1.example.com 'sudo systemctl start k3s-backup.service && ls -1t /mnt/pishare/k3s-backups | head -3'
+ssh labadmin@k3s-1.example.com 'sudo systemctl start lab-backup.service && ls -1t /mnt/pishare/k3s-backups | head -3'
 ```
 
 Restore (decrypting and listing an archive has been tested; a full restore has not been rehearsed):

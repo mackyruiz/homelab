@@ -1,0 +1,9 @@
+[Unit]
+Description=Nightly {{ backup_name }} backup
+
+[Timer]
+OnCalendar={{ backup_on_calendar }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

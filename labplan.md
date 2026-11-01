@@ -110,7 +110,7 @@ The NAS (`nas`) hosts Gitea, bulk storage, and backups. It is the first thing to
 | -------------------------------- | ----------- | ----------- | --------------------------------------------- |
 | Gitea repositories and database  | NAS         | ZFS dataset | Snapshot, then replicate off the NAS          |
 | Proxmox VM backups               | Proxmox     | NAS share   | Scheduled `vzdump`                            |
-| K3s datastore                    | `k3s-1`     | NAS share   | Encrypted with age; see the `k3s_backup` role |
+| K3s datastore                    | `k3s-1`     | NAS share   | Encrypted with age; see the `backup` role |
 | Terraform state                  | Workstation | NAS         | State is local; copy after every apply        |
 | Ansible vault password, age keys | Workstation | Vaultwarden | Never only in Git or only on one machine      |
 

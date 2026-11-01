@@ -36,7 +36,7 @@
   <rect x="50" y="442" width="195" height="30" rx="5" fill="#fef3c7" stroke="#d97706"/>
   <text x="147" y="461" text-anchor="middle" font-size="12" fill="#0f172a">node-exporter</text>
   <rect x="50" y="478" width="195" height="30" rx="5" fill="#f1f5f9" stroke="#64748b"/>
-  <text x="147" y="497" text-anchor="middle" font-size="12" fill="#0f172a">k3s-backup.timer, 03:30</text>
+  <text x="147" y="497" text-anchor="middle" font-size="12" fill="#0f172a">lab-backup.timer, 03:30</text>
   <rect x="275" y="205" width="215" height="330" rx="8" fill="#ffffff" stroke="#334155" stroke-width="1.5"/>
   <text x="382" y="228" text-anchor="middle" font-weight="bold" fill="#0f172a">k3s-2  10.0.0.42</text>
   <text x="382" y="246" text-anchor="middle" font-size="11" fill="#475569">agent</text>

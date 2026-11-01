@@ -3,6 +3,10 @@ timezone: "America/Los_Angeles"
 
 admin_user: "labadmin"
 
+# Public half of vault_k3s_age_key (group_vars/k3s_cluster/vault.yml): SOPS
+# recipient in k3s-fleet/.sops.yaml and the key every backup archive is encrypted to.
+backup_age_public_key: "age1REPLACE_WITH_YOUR_AGE_RECIPIENT"
+
 ssh_public_keys:
   - "ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY"
   - "ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY"

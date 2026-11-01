@@ -1,0 +1,14 @@
+#!/bin/bash
+# Nightly {{ backup_name }} backup, age-encrypted. Managed by Ansible (role backup).
+set -euo pipefail
+dest={{ backup_dest }}
+stamp=$(date +%Y%m%dT%H%M%S)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+{% for step in backup_steps %}
+{{ step }}
+{% endfor %}
+mkdir -p "$dest"
+tar -C "$work" -czf - . | age -r '{{ backup_age_public_key }}' > "$dest/{{ backup_name }}-$stamp.tar.gz.age.part"
+mv "$dest/{{ backup_name }}-$stamp.tar.gz.age.part" "$dest/{{ backup_name }}-$stamp.tar.gz.age"
+ls -1t "$dest"/{{ backup_name }}-*.tar.gz.age | tail -n +{{ backup_keep + 1 }} | xargs -r rm -f --
