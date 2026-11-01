@@ -1,0 +1,3 @@
+---
+# IPA host name. Override per host when the DNS name differs from the inventory name.
+ipa_client_fqdn: "{{ inventory_hostname if '.' in inventory_hostname else inventory_hostname ~ '.' ~ ipa_domain }}"

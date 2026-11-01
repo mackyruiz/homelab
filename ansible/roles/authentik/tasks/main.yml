@@ -1,0 +1,124 @@
+---
+- name: Create Authentik directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.owner | default('root') }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop:
+    - { path: "{{ authentik_dir }}" }
+    - { path: "{{ authentik_dir }}/blueprints" }
+    - { path: "{{ authentik_dir }}/data", owner: "1000", mode: "0775" }
+    - { path: "{{ authentik_dir }}/certs", owner: "1000" }
+    - { path: "{{ authentik_dir }}/custom-templates", owner: "1000" }
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Fetch the FreeIPA CA certificate
+  ansible.builtin.slurp:
+    src: /etc/ipa/ca.crt
+  delegate_to: "{{ groups['freeipa_servers'][0] }}"
+  register: ipa_ca
+
+- name: Install the FreeIPA CA certificate for the blueprint
+  ansible.builtin.copy:
+    content: "{{ ipa_ca.content | b64decode }}"
+    dest: "{{ authentik_dir }}/blueprints/freeipa-ca.crt"
+    mode: "0644"
+
+- name: Render Authentik environment file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ authentik_dir }}/.env"
+    mode: "0600"
+  diff: false
+
+- name: Render Authentik compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ authentik_dir }}/docker-compose.yml"
+    mode: "0644"
+
+- name: Render Authentik blueprint
+  ansible.builtin.template:
+    src: blueprints/homelab.yaml.j2
+    dest: "{{ authentik_dir }}/blueprints/homelab.yaml"
+    mode: "0644"
+
+- name: Render yarr Authentik blueprint
+  ansible.builtin.template:
+    src: blueprints/yarr.yaml.j2
+    dest: "{{ authentik_dir }}/blueprints/yarr.yaml"
+    mode: "0644"
+
+- name: Render Gitea Authentik blueprint
+  ansible.builtin.template:
+    src: blueprints/gitea.yaml.j2
+    dest: "{{ authentik_dir }}/blueprints/gitea.yaml"
+    mode: "0644"
+
+- name: Start Authentik
+  community.docker.docker_compose_v2:
+    project_src: "{{ authentik_dir }}"
+    project_name: authentik
+    state: present
+
+- name: Wait for Authentik to be ready
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ authentik_http_port }}/-/health/ready/"
+    status_code: 200
+  register: authentik_ready
+  until: authentik_ready.status == 200
+  retries: 60
+  delay: 5
+
+- name: Wait for the homelab blueprint to apply
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ authentik_http_port }}/api/v3/sources/ldap/freeipa/"
+    headers:
+      Authorization: "Bearer {{ vault_authentik_bootstrap_token }}"
+    status_code: 200
+  register: authentik_blueprint
+  until: authentik_blueprint.status == 200
+  retries: 60
+  delay: 10
+  no_log: true
+
+# `ak ldap_sync` blocks on a dramatiq result that is never stored (ResultMissing)
+# even though the sync runs; poll the API for the synced users instead.
+- name: Wait for FreeIPA users to be synced
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ authentik_http_port }}/api/v3/core/users/?username={{ ipa_users[0].name }}"
+    headers:
+      Authorization: "Bearer {{ vault_authentik_bootstrap_token }}"
+    return_content: true
+  register: authentik_users
+  until: authentik_users.json.pagination.count | default(0) == 1
+  retries: 30
+  delay: 10
+  no_log: true
+
+- name: Wait for the yarr blueprint to apply
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ authentik_http_port }}/api/v3/core/applications/homarr/"
+    headers:
+      Authorization: "Bearer {{ vault_authentik_bootstrap_token }}"
+    status_code: 200
+  register: authentik_yarr_blueprint
+  until: authentik_yarr_blueprint.status == 200
+  retries: 60
+  delay: 10
+  no_log: true
+
+- name: Wait for the Gitea blueprint to apply
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ authentik_http_port }}/api/v3/core/applications/gitea/"
+    headers:
+      Authorization: "Bearer {{ vault_authentik_bootstrap_token }}"
+    status_code: 200
+  register: authentik_gitea_blueprint
+  until: authentik_gitea_blueprint.status == 200
+  retries: 60
+  delay: 10
+  no_log: true

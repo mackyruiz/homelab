@@ -1,0 +1,15 @@
+services:
+  caddy:
+    build: .
+    image: homelab/caddy-godaddy:local
+    container_name: caddy
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data:/data
+      - ./config:/config
+    restart: unless-stopped

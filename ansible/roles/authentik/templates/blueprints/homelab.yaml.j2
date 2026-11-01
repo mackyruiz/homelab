@@ -1,0 +1,123 @@
+version: 1
+metadata:
+  name: homelab - identity
+entries:
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs: { identifiers: { name: "Default - Authentication flow" }, required: true }
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs: { identifiers: { name: "Default - TOTP MFA setup flow" }, required: true }
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs: { identifiers: { name: "Default - Provider authorization flow (implicit consent)" }, required: true }
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs: { identifiers: { name: "Default - Provider invalidation flow" }, required: true }
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs: { identifiers: { name: "System - LDAP Source - Mappings" }, required: true }
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs: { identifiers: { name: "System - OAuth2 Provider - Scopes" }, required: true }
+
+  # MFA for everyone: users without a device must enroll TOTP at next login.
+  - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+    identifiers: { name: default-authentication-mfa-validation }
+    attrs:
+      not_configured_action: configure
+      device_classes: [totp, webauthn, static]
+      configuration_stages:
+        - !Find [authentik_stages_authenticator_totp.authenticatortotpstage, [name, default-authenticator-totp-setup]]
+
+  - model: authentik_crypto.certificatekeypair
+    id: freeipa-ca
+    identifiers: { name: FreeIPA CA }
+    attrs:
+      certificate_data: !File /blueprints/custom/freeipa-ca.crt
+      key_data: ""
+
+  - model: authentik_sources_ldap.ldapsource
+    identifiers: { slug: freeipa }
+    attrs:
+      name: FreeIPA
+      enabled: true
+      server_uri: "ldaps://{{ ipa_server_fqdn }}"
+      peer_certificate: !KeyOf freeipa-ca
+      bind_cn: "uid=authentik,cn=sysaccounts,cn=etc,{{ ipa_base_dn }}"
+      bind_password: !Env AUTHENTIK_FREEIPA_BIND_PASSWORD
+      base_dn: "{{ ipa_base_dn }}"
+      additional_user_dn: cn=users,cn=accounts
+      additional_group_dn: cn=groups,cn=accounts
+      user_object_filter: "(objectClass=inetOrgPerson)"
+      group_object_filter: "(objectClass=ipausergroup)"
+      group_membership_field: member
+      object_uniqueness_field: ipaUniqueID
+      sync_users: true
+      sync_users_password: false
+      sync_groups: true
+      password_login_update_internal_password: false
+      user_property_mappings:
+        - !Find [authentik_sources_ldap.ldapsourcepropertymapping, [managed, goauthentik.io/sources/ldap/openldap-uid]]
+        - !Find [authentik_sources_ldap.ldapsourcepropertymapping, [managed, goauthentik.io/sources/ldap/openldap-cn]]
+        - !Find [authentik_sources_ldap.ldapsourcepropertymapping, [managed, goauthentik.io/sources/ldap/default-mail]]
+      group_property_mappings:
+        - !Find [authentik_sources_ldap.ldapsourcepropertymapping, [managed, goauthentik.io/sources/ldap/openldap-cn]]
+
+  - model: authentik_providers_oauth2.oauth2provider
+    id: proxmox-provider
+    identifiers: { name: Proxmox }
+    attrs:
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      client_type: confidential
+      grant_types: [authorization_code, refresh_token]
+      client_id: proxmox
+      client_secret: !Env AUTHENTIK_PROXMOX_CLIENT_SECRET
+      redirect_uris:
+        - { matching_mode: strict, url: "https://pve1.example.com:8006" }
+        - { matching_mode: strict, url: "https://10.0.0.60:8006" }
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+
+  - model: authentik_core.application
+    identifiers: { slug: proxmox }
+    attrs:
+      name: Proxmox
+      provider: !KeyOf proxmox-provider
+      meta_launch_url: "https://pve1.example.com:8006"
+
+  # Authentik's stock email scope reports email_verified=false, which Vaultwarden
+  # refuses. Emails come from FreeIPA (admin-managed), so vouch for them.
+  - model: authentik_providers_oauth2.scopemapping
+    id: vaultwarden-email-scope
+    identifiers: { name: "Vaultwarden: email (verified)" }
+    attrs:
+      scope_name: email
+      expression: |
+        return {"email": request.user.email, "email_verified": True}
+
+  - model: authentik_providers_oauth2.oauth2provider
+    id: vaultwarden-provider
+    identifiers: { name: Vaultwarden }
+    attrs:
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      client_type: confidential
+      grant_types: [authorization_code, refresh_token]
+      client_id: vaultwarden
+      client_secret: !Env AUTHENTIK_VAULTWARDEN_CLIENT_SECRET
+      # Vaultwarden's web client treats tokens shorter than ~5 min as expired.
+      access_token_validity: hours=1
+      redirect_uris:
+        - { matching_mode: strict, url: "https://{{ vaultwarden_fqdn }}/identity/connect/oidc-signin" }
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !KeyOf vaultwarden-email-scope
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-offline_access]]
+
+  - model: authentik_core.application
+    identifiers: { slug: vaultwarden }
+    attrs:
+      name: Vaultwarden
+      provider: !KeyOf vaultwarden-provider
+      meta_launch_url: "https://{{ vaultwarden_fqdn }}"

@@ -1,0 +1,26 @@
+---
+- name: Restrict IPA SSH logins to keys and Kerberos
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-homelab-ipa-auth.conf
+    content: |
+      # Managed by Ansible (freeipa_client). Sorts before 04-ipa.conf; sshd keeps the first value.
+      # IPA users log in with IPA-stored SSH keys or Kerberos (GSSAPI) only.
+      KbdInteractiveAuthentication no
+      PasswordAuthentication no
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Restart sshd for IPA auth policy
+
+- name: Read the effective sshd config
+  ansible.builtin.command: /usr/sbin/sshd -T
+  register: ipa_sshd_effective
+  changed_when: false
+  check_mode: false
+
+- name: Assert the IPA SSH policy is effective
+  ansible.builtin.assert:
+    that:
+      - "'kbdinteractiveauthentication no' in ipa_sshd_effective.stdout_lines"
+      - "'passwordauthentication no' in ipa_sshd_effective.stdout_lines"
+    fail_msg: "sshd on {{ inventory_hostname }} does not apply /etc/ssh/sshd_config.d/00-homelab-ipa-auth.conf first; check the Include line in /etc/ssh/sshd_config."
+  when: not ansible_check_mode

@@ -1,0 +1,10 @@
+---
+- name: Configure yarr media host
+  hosts: yarr
+  become: true
+  roles:
+    - common
+    - docker
+    - nfs_mount
+    - internal_dns
+    - yarr_stack

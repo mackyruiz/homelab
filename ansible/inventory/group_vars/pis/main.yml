@@ -1,0 +1,11 @@
+---
+nfs_mount_packages:
+  - nfs-common
+  - nfs4-acl-tools
+nfs_mounts:
+  - src: "10.0.0.225:/tank/pishare"
+    path: /mnt/pishare
+    opts: "rw,sync"
+    mode: "0777"
+    owner: root
+    group: root

@@ -1,0 +1,138 @@
+---
+- name: Keep cloud-init from rewriting the hostname
+  ansible.builtin.copy:
+    dest: /etc/cloud/cloud.cfg.d/99-homelab-hostname.cfg
+    content: |
+      preserve_hostname: true
+    mode: "0644"
+
+# ipa-server-install rejects an FQDN that maps to 127.0.0.1, which the stock
+# cloud-init hosts template produces.
+- name: Pin the hosts template used by cloud-init
+  ansible.builtin.template:
+    src: hosts.redhat.tmpl.j2
+    dest: /etc/cloud/templates/hosts.redhat.tmpl
+    mode: "0644"
+
+- name: Map the FQDN to the LAN address in /etc/hosts
+  ansible.builtin.copy:
+    dest: /etc/hosts
+    content: |
+      127.0.0.1 localhost localhost.localdomain localhost4 localhost4.localdomain4
+      ::1 localhost localhost.localdomain localhost6 localhost6.localdomain6
+      {{ ansible_host }} {{ ipa_server_fqdn }} {{ ipa_server_fqdn.split('.')[0] }}
+    mode: "0644"
+
+- name: Set the hostname to the IPA server FQDN
+  ansible.builtin.hostname:
+    name: "{{ ipa_server_fqdn }}"
+
+- name: Install FreeIPA server packages
+  ansible.builtin.dnf:
+    name:
+      - ipa-server
+      - python3-ldap
+    state: present
+
+- name: Open FreeIPA firewall services
+  ansible.posix.firewalld:
+    service: freeipa-4
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Install FreeIPA server
+  ansible.builtin.command: >-
+    ipa-server-install --unattended
+    --realm {{ ipa_realm }} --domain {{ ipa_domain }}
+    --hostname {{ ipa_server_fqdn }} --ip-address {{ ansible_host }}
+    --ds-password {{ vault_ipa_ds_password }}
+    --admin-password {{ vault_ipa_admin_password }}
+  args:
+    creates: /etc/ipa/default.conf
+  async: 3600
+  poll: 30
+  no_log: true
+
+- name: Create the admin group
+  freeipa.ansible_freeipa.ipagroup:
+    ipaadmin_password: "{{ vault_ipa_admin_password }}"
+    name: "{{ ipa_admin_group }}"
+
+- name: Create users
+  freeipa.ansible_freeipa.ipauser:
+    ipaadmin_password: "{{ vault_ipa_admin_password }}"
+    name: "{{ item.name }}"
+    first: "{{ item.first }}"
+    last: "{{ item.last }}"
+    email: ["{{ item.email }}"]
+    sshpubkey: "{{ ssh_public_keys }}"
+    password: "{{ vault_ipa_user_password }}"
+    update_password: on_create
+  loop: "{{ ipa_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+# An admin-set password is expired at first use, which would break the LDAP bind.
+- name: Push user password expiry far into the future
+  freeipa.ansible_freeipa.ipauser:
+    ipaadmin_password: "{{ vault_ipa_admin_password }}"
+    name: "{{ item.name }}"
+    passwordexpiration: "20991231000000Z"
+  loop: "{{ ipa_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Add users to the admin group
+  freeipa.ansible_freeipa.ipagroup:
+    ipaadmin_password: "{{ vault_ipa_admin_password }}"
+    name: "{{ ipa_admin_group }}"
+    user: "{{ ipa_users | map(attribute='name') | list }}"
+    action: member
+
+- name: Allow the admin group on all hosts and services
+  freeipa.ansible_freeipa.ipahbacrule:
+    ipaadmin_password: "{{ vault_ipa_admin_password }}"
+    name: lab-admins-all
+    group: ["{{ ipa_admin_group }}"]
+    hostcategory: all
+    servicecategory: all
+
+- name: Disable the default allow_all HBAC rule
+  freeipa.ansible_freeipa.ipahbacrule:
+    ipaadmin_password: "{{ vault_ipa_admin_password }}"
+    name: allow_all
+    state: disabled
+
+- name: Give the admin group full sudo
+  freeipa.ansible_freeipa.ipasudorule:
+    ipaadmin_password: "{{ vault_ipa_admin_password }}"
+    name: lab-admins-all
+    group: ["{{ ipa_admin_group }}"]
+    hostcategory: all
+    cmdcategory: all
+    runasusercategory: all
+    runasgroupcategory: all
+
+- name: Create the Authentik LDAP bind system account
+  community.general.ldap_entry:
+    dn: "uid=authentik,cn=sysaccounts,cn=etc,{{ ipa_base_dn }}"
+    objectClass:
+      - account
+      - simplesecurityobject
+    attributes:
+      uid: authentik
+      userPassword: "{{ vault_ipa_authentik_bind_password }}"
+      passwordExpirationTime: 20380119031407Z
+      nsIdleTimeout: "0"
+    server_uri: ldap://localhost
+    bind_dn: cn=Directory Manager
+    bind_pw: "{{ vault_ipa_ds_password }}"
+  no_log: true
+
+- name: Restrict IPA SSH logins to keys and Kerberos
+  ansible.builtin.include_role:
+    name: freeipa_client
+    tasks_from: sshd

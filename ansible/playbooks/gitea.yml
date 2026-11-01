@@ -1,0 +1,7 @@
+---
+- name: Configure Gitea
+  hosts: gitea_servers
+  become: true
+  roles:
+    - internal_dns
+    - gitea

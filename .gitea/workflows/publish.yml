@@ -1,0 +1,66 @@
+name: publish
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: sh
+
+jobs:
+  publish:
+    runs-on: k3s-arm64
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+      GITLEAKS_SHA256: e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080
+      SRC_SERVER: ${{ gitea.server_url }}
+      SRC_REPO: ${{ gitea.repository }}
+      SRC_TOKEN: ${{ secrets.GITEA_TOKEN }}
+      PUBLISH_REPO: ${{ vars.PUBLISH_REPO }}
+      PUBLISH_AUTHOR_NAME: ${{ vars.PUBLISH_AUTHOR_NAME }}
+      PUBLISH_AUTHOR_EMAIL: ${{ vars.PUBLISH_AUTHOR_EMAIL }}
+      PUBLISH_DEPLOY_KEY: ${{ secrets.PUBLISH_DEPLOY_KEY }}
+    steps:
+      - name: Install tools
+        run: |
+          set -eu
+          apk add --no-cache git openssh-client
+          wget -qO /tmp/gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_arm64.tar.gz"
+          echo "${GITLEAKS_SHA256}  /tmp/gitleaks.tgz" | sha256sum -c -
+          tar -xzf /tmp/gitleaks.tgz -C /usr/local/bin gitleaks
+
+      - name: Fetch private source
+        run: |
+          set -eu
+          AUTH=$(printf 'x-access-token:%s' "$SRC_TOKEN" | base64 | tr -d '\n')
+          git -c http.extraHeader="Authorization: basic $AUTH" clone --depth 1 --branch main "$SRC_SERVER/$SRC_REPO.git" /tmp/publish/src
+
+      - name: Sanitize and scan
+        run: |
+          set -eu
+          python3 /tmp/publish/src/publish/sanitize.py tree /tmp/publish/src /tmp/publish/out
+          gitleaks dir /tmp/publish/out --no-banner --redact --exit-code 1
+
+      - name: Push to public repo
+        run: |
+          set -eu
+          : "${PUBLISH_REPO:?set the PUBLISH_REPO Actions variable}"
+          : "${PUBLISH_AUTHOR_NAME:?set the PUBLISH_AUTHOR_NAME Actions variable}"
+          : "${PUBLISH_AUTHOR_EMAIL:?set the PUBLISH_AUTHOR_EMAIL Actions variable}"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$PUBLISH_DEPLOY_KEY" > "$HOME/.ssh/publish_key"
+          printf '%s\n' 'github.com ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY' > "$HOME/.ssh/known_hosts"
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/publish_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          git clone --depth 1 "$PUBLISH_REPO" /tmp/publish/pub
+          cd /tmp/publish/pub
+          git symbolic-ref HEAD refs/heads/main
+          git rm -rq --ignore-unmatch .
+          cp -a /tmp/publish/out/. .
+          git add -A
+          if git diff --cached --quiet; then echo "No public changes"; exit 0; fi
+          SHA=$(git -C /tmp/publish/src rev-parse --short=12 HEAD)
+          SUBJECT=$(git -C /tmp/publish/src log -1 --format=%s | python3 /tmp/publish/src/publish/sanitize.py text) || SUBJECT="Sync from private repository"
+          git -c user.name="$PUBLISH_AUTHOR_NAME" -c user.email="$PUBLISH_AUTHOR_EMAIL" commit -q -m "$SUBJECT" -m "Source-Commit: $SHA"
+          git push origin HEAD:main

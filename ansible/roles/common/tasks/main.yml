@@ -1,0 +1,52 @@
+---
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+
+- name: Install common packages
+  ansible.builtin.include_tasks: "packages_{{ ansible_facts.os_family }}.yml"
+
+- name: Ensure qemu-guest-agent is enabled
+  ansible.builtin.service:
+    name: qemu-guest-agent
+    enabled: true
+    state: started
+
+- name: Ensure admin user exists
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    shell: /bin/bash
+    groups: "{{ admin_groups }}"
+    append: true
+
+- name: Authorize SSH keys for admin user
+  ansible.posix.authorized_key:
+    user: "{{ admin_user }}"
+    key: "{{ item }}"
+    state: present
+  loop: "{{ ssh_public_keys }}"
+
+- name: Disable root SSH login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PermitRootLogin"
+    line: "PermitRootLogin no"
+    state: present
+  notify: Restart ssh
+
+- name: Disable SSH password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PasswordAuthentication"
+    line: "PasswordAuthentication no"
+    state: present
+  notify: Restart ssh
+
+- name: Harden host (updates and firewall)
+  ansible.builtin.include_tasks: "hardening_{{ ansible_facts.os_family }}.yml"
+
+- name: Enable fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: "{{ fail2ban_enabled }}"
+    state: "{{ 'started' if fail2ban_enabled else 'stopped' }}"

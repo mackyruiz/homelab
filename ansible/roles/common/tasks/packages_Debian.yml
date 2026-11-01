@@ -1,0 +1,14 @@
+---
+- name: Install common packages
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - ufw
+      - unattended-upgrades
+      - fail2ban
+      - qemu-guest-agent
+      - acl
+    state: present
+    update_cache: true

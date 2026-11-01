@@ -1,0 +1,70 @@
+version: 1
+metadata:
+  name: homelab - yarr
+entries:
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs: { identifiers: { name: "Default - Provider authorization flow (implicit consent)" }, required: true }
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs: { identifiers: { name: "Default - Provider invalidation flow" }, required: true }
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs: { identifiers: { name: "System - OAuth2 Provider - Scopes" }, required: true }
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs: { identifiers: { name: "System - Proxy Provider - Scopes" }, required: true }
+{% for app in yarr_forward_auth_apps %}
+
+  - model: authentik_providers_proxy.proxyprovider
+    id: {{ app.slug }}-provider
+    identifiers: { name: {{ app.name }} }
+    attrs:
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      mode: forward_single
+      external_host: "https://{{ app.fqdn }}"
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/proxy/scope-proxy]]
+
+  - model: authentik_core.application
+    identifiers: { slug: {{ app.slug }} }
+    attrs:
+      name: {{ app.name }}
+      provider: !KeyOf {{ app.slug }}-provider
+      meta_launch_url: "https://{{ app.fqdn }}"
+{% endfor %}
+
+  - model: authentik_providers_oauth2.oauth2provider
+    id: homarr-provider
+    identifiers: { name: Homarr }
+    attrs:
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      client_type: confidential
+      grant_types: [authorization_code, refresh_token]
+      client_id: homarr
+      client_secret: !Env AUTHENTIK_HOMARR_CLIENT_SECRET
+      redirect_uris:
+        - { matching_mode: strict, url: "https://{{ homarr_fqdn }}/api/auth/callback/oidc" }
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+
+  - model: authentik_core.application
+    identifiers: { slug: homarr }
+    attrs:
+      name: Homarr
+      provider: !KeyOf homarr-provider
+      meta_launch_url: "https://{{ homarr_fqdn }}"
+
+  - model: authentik_outposts.outpost
+    identifiers: { managed: goauthentik.io/outposts/embedded }
+    attrs:
+      config:
+        authentik_host: "https://{{ authentik_fqdn }}"
+      providers:
+{% for app in yarr_forward_auth_apps %}
+        - !KeyOf {{ app.slug }}-provider
+{% endfor %}

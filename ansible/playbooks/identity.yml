@@ -1,0 +1,33 @@
+---
+- name: FreeIPA server
+  hosts: freeipa_servers
+  become: true
+  roles:
+    - common
+    - freeipa_server
+
+- name: Enroll identity VMs in FreeIPA
+  hosts: authentik_servers:vaultwarden_servers:caddy_servers
+  become: true
+  roles:
+    - common
+    - docker
+    - freeipa_client
+
+- name: Authentik
+  hosts: authentik_servers
+  become: true
+  roles:
+    - authentik
+
+- name: Vaultwarden
+  hosts: vaultwarden_servers
+  become: true
+  roles:
+    - vaultwarden
+
+- name: Caddy
+  hosts: caddy_servers
+  become: true
+  roles:
+    - caddy

@@ -1,0 +1,12 @@
+---
+# qBittorrent >= 5 answers a successful login with 204 and an empty body;
+# older versions answer 200 with "Ok.".
+qbittorrent_desired_login_ok: >-
+  {{ qbittorrent_desired_login.status | default(0) == 204
+     or (qbittorrent_desired_login.status | default(0) == 200
+         and 'Ok.' in (qbittorrent_desired_login.content | default(''))) }}
+
+# Session cookie from whichever qBittorrent login succeeded earlier in the role.
+qbittorrent_session_cookie: >-
+  {{ qbittorrent_desired_login.cookies_string if qbittorrent_desired_login_ok | bool
+     else qbittorrent_temp_login.cookies_string }}

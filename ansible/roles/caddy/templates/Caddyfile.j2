@@ -1,0 +1,50 @@
+(godaddy_tls) {
+	tls {
+		dns godaddy {env.GODADDY_API_TOKEN}
+		resolvers 1.1.1.1 8.8.8.8
+		# GoDaddy publishes TXT records to its nameservers slowly; Let's Encrypt
+		# validates from several vantage points and failed with NXDOMAIN without this.
+		propagation_delay 90s
+		propagation_timeout 10m
+	}
+}
+
+(authentik_forward_auth) {
+	route {
+		reverse_proxy /outpost.goauthentik.io/* http://authentik.{{ ipa_domain }}:{{ authentik_http_port }}
+		forward_auth http://authentik.{{ ipa_domain }}:{{ authentik_http_port }} {
+			uri /outpost.goauthentik.io/auth/caddy
+			copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Entitlements X-Authentik-Email X-Authentik-Name X-Authentik-Uid X-Authentik-Jwt X-Authentik-Meta-Jwks X-Authentik-Meta-Outpost X-Authentik-Meta-Provider X-Authentik-Meta-App X-Authentik-Meta-Version
+			trusted_proxies private_ranges
+		}
+		reverse_proxy {args[0]}
+	}
+}
+
+{{ authentik_fqdn }} {
+	import godaddy_tls
+	reverse_proxy authentik.{{ ipa_domain }}:{{ authentik_http_port }}
+}
+
+{{ vaultwarden_fqdn }} {
+	import godaddy_tls
+	reverse_proxy vaultwarden.{{ ipa_domain }}:{{ vaultwarden_http_port }}
+}
+{% set yarr = hostvars[groups['yarr'][0]] %}
+{% for app in yarr_forward_auth_apps %}
+
+{{ app.fqdn }} {
+	import godaddy_tls
+	import authentik_forward_auth {{ yarr.ansible_host }}:{{ yarr[app.port_var] }}
+}
+{% endfor %}
+
+{{ homarr_fqdn }} {
+	import godaddy_tls
+	reverse_proxy {{ yarr.ansible_host }}:{{ yarr.homarr_port }}
+}
+
+{{ gitea_fqdn }} {
+	import godaddy_tls
+	reverse_proxy {{ hostvars[groups['gitea_servers'][0]].ansible_host }}:{{ gitea_http_port }}
+}

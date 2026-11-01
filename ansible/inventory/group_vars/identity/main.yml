@@ -1,0 +1,10 @@
+---
+ipa_base_dn: dc=example,dc=com
+ipa_admin_group: "{{ sso_admin_group }}"
+ipa_users:
+  - { name: labuser, first: Lab, last: User, email: admin@example.com }
+
+authentik_fqdn: auth.example.com
+authentik_http_port: 9000
+vaultwarden_fqdn: vault.example.com
+vaultwarden_http_port: 8000

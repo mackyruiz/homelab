@@ -1,0 +1,46 @@
+---
+# Docker-published IPv4 ports skip UFW (FORWARD path), so DOCKER-USER drops
+# outside traffic. IPv6 and container->host-IP traffic arrive through
+# docker-proxy on INPUT, so UFW rules cover those paths.
+- name: Remove open-to-anyone UFW rules for forward-auth app ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+    delete: true
+  loop: "{{ yarr_sso_locked_ports }}"
+
+- name: Allow the SSO proxy to reach forward-auth app ports
+  community.general.ufw:
+    rule: allow
+    from_ip: "{{ yarr_sso_proxy_ip }}"
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ yarr_sso_locked_ports }}"
+
+- name: Allow local containers to reach forward-auth app ports via the host IP
+  community.general.ufw:
+    rule: allow
+    from_ip: "{{ yarr_docker_bridge_cidr }}"
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ yarr_sso_locked_ports }}"
+
+- name: Drop outside traffic to forward-auth app ports in DOCKER-USER
+  ansible.builtin.blockinfile:
+    path: /etc/ufw/after.rules
+    marker: "# {mark} ANSIBLE MANAGED: yarr SSO DOCKER-USER"
+    insertafter: EOF
+    block: |
+      *filter
+      :DOCKER-USER - [0:0]
+      {% for port in yarr_sso_locked_ports %}
+      -A DOCKER-USER -i {{ ansible_facts['default_ipv4']['interface'] }} -p tcp -m conntrack --ctorigdstport {{ port }} ! -s {{ yarr_sso_proxy_ip }} -j DROP
+      {% endfor %}
+      COMMIT
+  register: yarr_ufw_after_rules
+
+- name: Reload UFW to load DOCKER-USER rules
+  community.general.ufw:
+    state: reloaded
+  when: yarr_ufw_after_rules.changed

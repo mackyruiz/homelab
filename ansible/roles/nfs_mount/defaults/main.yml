@@ -1,0 +1,4 @@
+---
+nfs_mount_packages:
+  - nfs-common
+nfs_mounts: []

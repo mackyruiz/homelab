@@ -1,0 +1,60 @@
+---
+- name: Create Caddy directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ caddy_dir }}"
+    - "{{ caddy_dir }}/data"
+    - "{{ caddy_dir }}/config"
+
+- name: Install Caddy Dockerfile
+  ansible.builtin.copy:
+    src: Dockerfile
+    dest: "{{ caddy_dir }}/Dockerfile"
+    mode: "0644"
+
+- name: Render Caddyfile
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: "{{ caddy_dir }}/Caddyfile"
+    mode: "0644"
+  notify: Restart caddy
+
+- name: Render Caddy environment file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ caddy_dir }}/.env"
+    mode: "0600"
+  diff: false
+  notify: Restart caddy
+
+- name: Render Caddy compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ caddy_dir }}/docker-compose.yml"
+    mode: "0644"
+
+- name: Start Caddy
+  community.docker.docker_compose_v2:
+    project_src: "{{ caddy_dir }}"
+    project_name: caddy
+    state: present
+    build: policy
+
+- name: Apply pending Caddy restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for trusted HTTPS on Authentik and Vaultwarden
+  ansible.builtin.uri:
+    url: "{{ item }}"
+    validate_certs: true
+    status_code: 200
+  loop:
+    - "https://{{ authentik_fqdn }}/-/health/live/"
+    - "https://{{ vaultwarden_fqdn }}/alive"
+  register: caddy_https
+  until: caddy_https.status == 200
+  retries: 60
+  delay: 10

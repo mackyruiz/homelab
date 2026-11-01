@@ -1,0 +1,47 @@
+---
+timezone: "America/Los_Angeles"
+
+admin_user: "labadmin"
+
+ssh_public_keys:
+  - "ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY"
+  - "ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY"
+  - "ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY"
+
+firewall_allowed_tcp_ports:
+  - 22
+
+unattended_upgrades_enabled: true
+fail2ban_enabled: true
+
+authentik_fqdn: auth.example.com
+
+# Yarr web UIs that Caddy publishes behind Authentik forward auth.
+# port_var names the yarr group variable holding the published host port.
+yarr_forward_auth_apps:
+  - { slug: sonarr, name: Sonarr, fqdn: sonarr.example.com, port_var: sonarr_port }
+  - { slug: radarr, name: Radarr, fqdn: radarr.example.com, port_var: radarr_port }
+  - { slug: prowlarr, name: Prowlarr, fqdn: prowlarr.example.com, port_var: prowlarr_port }
+  - { slug: qbittorrent, name: qBittorrent, fqdn: qbittorrent.example.com, port_var: qbittorrent_webui_port }
+homarr_fqdn: homarr.example.com
+
+# FreeIPA
+ipa_domain: example.com
+ipa_realm: EXAMPLE.COM
+ipa_server_fqdn: freeipa.example.com
+
+# The router's resolver does not know the internal records; hosts whose
+# containers must resolve them route this domain to the lab DNS server.
+internal_dns_server: "{{ hostvars[groups['dns_servers'][0]].ansible_host }}"
+internal_dns_domain: example.com
+
+gitea_fqdn: gitea.example.com
+gitea_http_port: 3000
+gitea_oauth_source_name: authentik
+
+# Members of this FreeIPA/Authentik group become admins in Gitea and Homarr.
+sso_admin_group: lab-admins
+# Authentik username -> existing local Gitea username. Gitea links the SSO login
+# to the Gitea account of that name on first sign-in (ACCOUNT_LINKING=auto).
+gitea_username_map:
+  labuser: labadmin

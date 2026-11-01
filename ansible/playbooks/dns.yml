@@ -1,0 +1,6 @@
+---
+- name: Configure DNS servers
+  hosts: dns_servers
+  become: true
+  roles:
+    - bind9

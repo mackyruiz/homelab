@@ -1,0 +1,16 @@
+# Template for publish/rules.toml. Copy to rules.toml and edit.
+# rules.toml itself is private and must never be published.
+
+# Glob patterns (fnmatch, '*' also matches '/') against repo-relative paths.
+# Matching files are left out of the export.
+exclude = ["publish/rules.toml", "*/vault.yml"]
+
+# Case-insensitive regexes. If any survives replacement in a file or path, nothing is published.
+# These must appear before the [[replace]] tables (TOML ordering).
+deny = ['mydomain', '192\.168\.']
+
+# Applied in file order to file contents and to paths.
+# pattern: Python regex. replacement: re.sub replacement string.
+[[replace]]
+pattern = 'mydomain\.net'
+replacement = 'example.com'

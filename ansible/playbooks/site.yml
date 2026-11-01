@@ -1,0 +1,8 @@
+---
+- import_playbook: baseline.yml
+- import_playbook: yarr.yml
+- import_playbook: identity.yml
+- import_playbook: dns.yml
+- import_playbook: gitea.yml
+- import_playbook: pis.yml
+- import_playbook: ipa_clients.yml

@@ -1,0 +1,54 @@
+---
+docker_config_dir: "/opt/yarr"
+docker_compose_project_name: "yarr"
+docker_stack_state: "present"
+
+media_user_uid: 1000
+media_group_gid: 1000
+
+media_root: "/srv/media"
+media_movies_path: "/srv/media/Movies"
+media_tv_path: "/srv/media/tv"
+media_downloads_path: "/srv/media/downloads"
+
+nfs_server: "10.0.0.225"
+nfs_export: "/tank/plex"
+nfs_mount_src: "10.0.0.225:/tank/plex"
+nfs_mount_opts: "defaults,_netdev,nofail,x-systemd.automount,x-systemd.requires=network-online.target"
+nfs_mounts:
+  - src: "{{ nfs_mount_src }}"
+    path: "{{ media_root }}"
+    opts: "{{ nfs_mount_opts }}"
+
+plex_claim_token: ""
+plex_advertise_url: ""
+plex_published_server_url: ""
+
+gluetun_enabled: true
+gluetun_timezone: "{{ timezone }}"
+gluetun_vpn_type: "wireguard"
+gluetun_vpn_service_provider: "protonvpn"
+gluetun_server_countries: "United States"
+
+watchtower_enabled: true
+# 6-field cron (seconds first): daily at 04:00 local time
+watchtower_schedule: "0 0 4 * * *"
+
+qbittorrent_webui_port: 8080
+sonarr_port: 8989
+radarr_port: 7878
+prowlarr_port: 9696
+flaresolverr_port: 8191
+plex_port: 32400
+homarr_port: 7575
+
+firewall_allowed_tcp_ports:
+  - 22
+  - "{{ plex_port }}"
+  - "{{ flaresolverr_port }}"
+  - "{{ homarr_port }}"
+
+# Only Caddy (and local containers) may reach the forward-auth apps directly.
+yarr_sso_proxy_ip: "{{ hostvars[groups['caddy_servers'][0]].ansible_host }}"
+yarr_sso_locked_ports: "{{ yarr_forward_auth_apps | map(attribute='port_var') | map('extract', hostvars[inventory_hostname]) | list }}"
+yarr_docker_bridge_cidr: "172.16.0.0/12"

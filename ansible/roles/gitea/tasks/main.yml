@@ -1,0 +1,87 @@
+---
+- name: Render Gitea compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ gitea_dir }}/docker-compose.yml"
+    mode: "0664"
+    backup: true
+
+- name: Start Gitea
+  community.docker.docker_compose_v2:
+    project_src: "{{ gitea_dir }}"
+    project_name: gittea
+    state: present
+
+- name: Wait for Gitea to be ready
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ gitea_http_port }}/api/v1/version"
+    status_code: 200
+  register: gitea_ready
+  until: gitea_ready.status == 200
+  retries: 30
+  delay: 3
+
+- name: List Gitea users
+  ansible.builtin.command: docker exec -u git gitea gitea admin user list
+  register: gitea_users
+  changed_when: false
+
+# The password is random and never shown: day-to-day login is SSO. Recover the
+# break-glass login with `docker exec -u git gitea gitea admin user change-password`.
+- name: Create the Gitea administrator on a fresh install
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - -u
+      - git
+      - gitea
+      - gitea
+      - admin
+      - user
+      - create
+      - --admin
+      - --username={{ gitea_admin_user }}
+      - --email={{ gitea_admin_email }}
+      - --random-password
+      - --must-change-password=false
+  when: gitea_users.stdout | regex_findall('(?m)^\d+\s+' ~ gitea_admin_user ~ '\s') | length == 0
+  changed_when: true
+  no_log: true
+
+- name: List Gitea authentication sources
+  ansible.builtin.command: docker exec -u git gitea gitea admin auth list
+  register: gitea_auth_sources
+  changed_when: false
+
+- name: Set Gitea OIDC source arguments
+  ansible.builtin.set_fact:
+    gitea_source_id: >-
+      {{ gitea_auth_sources.stdout | regex_findall('(?m)^(\d+)\s+' ~ gitea_oauth_source_name ~ '\s') | first | default('') }}
+    gitea_source_args:
+      - --name={{ gitea_oauth_source_name }}
+      - --provider=openidConnect
+      - --key=gitea
+      - --secret={{ hostvars[groups['authentik_servers'][0]].vault_authentik_gitea_client_secret }}
+      - --auto-discover-url=https://{{ authentik_fqdn }}/application/o/gitea/.well-known/openid-configuration
+      - --scopes=openid
+      - --scopes=email
+      - --scopes=profile
+      - --group-claim-name=groups
+      - --admin-group={{ sso_admin_group }}
+  no_log: true
+
+- name: Add the Authentik OIDC source to Gitea
+  ansible.builtin.command:
+    argv: "{{ ['docker', 'exec', '-u', 'git', 'gitea', 'gitea', 'admin', 'auth', 'add-oauth'] + gitea_source_args }}"
+  when: gitea_source_id | length == 0
+  changed_when: true
+  no_log: true
+
+# Gitea never shows the stored secret, so drift cannot be detected; re-apply.
+- name: Update the Authentik OIDC source in Gitea
+  ansible.builtin.command:
+    argv: "{{ ['docker', 'exec', '-u', 'git', 'gitea', 'gitea', 'admin', 'auth', 'update-oauth', '--id=' ~ gitea_source_id] + gitea_source_args }}"
+  when: gitea_source_id | length > 0
+  changed_when: false
+  no_log: true

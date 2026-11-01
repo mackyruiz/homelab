@@ -1,0 +1,8 @@
+---
+gitea_dir: /home/labadmin/gittea
+gitea_image: docker.gitea.com/gitea:1.27.2
+gitea_ssh_port: 2222
+# Local break-glass administrator, created on a fresh install. SSO users mapped
+# to it in gitea_username_map are linked to this account.
+gitea_admin_user: labadmin
+gitea_admin_email: admin@example.com

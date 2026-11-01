@@ -1,0 +1,3 @@
+---
+authentik_dir: /opt/authentik
+authentik_tag: "2026.8.5"

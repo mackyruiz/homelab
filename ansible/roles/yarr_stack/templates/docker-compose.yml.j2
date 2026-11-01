@@ -1,0 +1,162 @@
+services:
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: plex
+    network_mode: host
+    environment:
+      PUID: "${PUID}"
+      PGID: "${PGID}"
+      TZ: "${TZ}"
+      VERSION: "docker"
+      PLEX_CLAIM: "${PLEX_CLAIM}"
+      ADVERTISE_IP: "${PLEX_ADVERTISE_URL}"
+    volumes:
+      - "{{ docker_config_dir }}/config/plex:/config"
+      - "{{ media_movies_path }}:/movies"
+      - "{{ media_tv_path }}:/tv"
+      - "{{ media_downloads_path }}:/downloads"
+      - "/dev/shm:/transcode"
+      - "/dev/dri:/dev/dri"
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      PUID: "${PUID}"
+      PGID: "${PGID}"
+      TZ: "${TZ}"
+      PROWLARR__AUTH__METHOD: "External"
+    ports:
+      - "{{ prowlarr_port }}:9696"
+    volumes:
+      - "{{ docker_config_dir }}/config/prowlarr:/config"
+    restart: unless-stopped
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    environment:
+      TZ: "${TZ}"
+      LOG_LEVEL: "info"
+    ports:
+      - "{{ flaresolverr_port }}:8191"
+    restart: unless-stopped
+
+  homarr:
+    image: ghcr.io/homarr-labs/homarr:latest
+    container_name: homarr
+    environment:
+      TZ: "${TZ}"
+      SECRET_ENCRYPTION_KEY: "${HOMARR_SECRET_ENCRYPTION_KEY}"
+      AUTH_PROVIDERS: "oidc,credentials"
+      AUTH_OIDC_ISSUER: "https://{{ authentik_fqdn }}/application/o/homarr/"
+      AUTH_OIDC_CLIENT_ID: "homarr"
+      AUTH_OIDC_CLIENT_SECRET: "${HOMARR_OIDC_CLIENT_SECRET}"
+      AUTH_OIDC_CLIENT_NAME: "Authentik"
+      AUTH_OIDC_SCOPE_OVERWRITE: "openid email profile"
+      AUTH_OIDC_AUTO_LOGIN: "false"
+      AUTH_LOGOUT_REDIRECT_URL: "https://{{ authentik_fqdn }}/application/o/homarr/end-session/"
+    ports:
+      - "{{ homarr_port }}:7575"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "{{ docker_config_dir }}/config/homarr:/appdata"
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      PUID: "${PUID}"
+      PGID: "${PGID}"
+      TZ: "${TZ}"
+      SONARR__AUTH__METHOD: "External"
+    ports:
+      - "{{ sonarr_port }}:8989"
+    volumes:
+      - "{{ docker_config_dir }}/config/sonarr:/config"
+      - "{{ media_tv_path }}:/tv"
+      - "{{ media_downloads_path }}:/downloads"
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      PUID: "${PUID}"
+      PGID: "${PGID}"
+      TZ: "${TZ}"
+      RADARR__AUTH__METHOD: "External"
+    ports:
+      - "{{ radarr_port }}:7878"
+    volumes:
+      - "{{ docker_config_dir }}/config/radarr:/config"
+      - "{{ media_movies_path }}:/movies"
+      - "{{ media_downloads_path }}:/downloads"
+    restart: unless-stopped
+
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      TZ: "${TZ}"
+      VPN_SERVICE_PROVIDER: "${VPN_SERVICE_PROVIDER}"
+      VPN_TYPE: "${VPN_TYPE}"
+      SERVER_COUNTRIES: "${SERVER_COUNTRIES}"
+      WIREGUARD_PRIVATE_KEY: "${WIREGUARD_PRIVATE_KEY}"
+      WIREGUARD_ADDRESSES: "${WIREGUARD_ADDRESSES}"
+      OPENVPN_USER: "${OPENVPN_USER}"
+      OPENVPN_PASSWORD: "${OPENVPN_PASSWORD}"
+    ports:
+      - "{{ qbittorrent_webui_port }}:8080"
+      - "6881:6881"
+      - "6881:6881/udp"
+    volumes:
+      - "{{ docker_config_dir }}/config/gluetun:/gluetun"
+    restart: unless-stopped
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      PUID: "${PUID}"
+      PGID: "${PGID}"
+      TZ: "${TZ}"
+      WEBUI_PORT: "8080"
+      TORRENTING_PORT: "6881"
+{% if gluetun_enabled %}
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+{% else %}
+    ports:
+      - "{{ qbittorrent_webui_port }}:8080"
+      - "6881:6881"
+      - "6881:6881/udp"
+{% endif %}
+    volumes:
+      - "{{ docker_config_dir }}/config/qbittorrent:/config"
+      - "{{ media_downloads_path }}:/downloads"
+    restart: unless-stopped
+
+{% if watchtower_enabled %}
+  watchtower:
+    image: nickfedor/watchtower:latest
+    container_name: watchtower
+    environment:
+      TZ: "${TZ}"
+      WATCHTOWER_SCHEDULE: "{{ watchtower_schedule }}"
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_INCLUDE_RESTARTING: "true"
+      WATCHTOWER_NOTIFICATION_URL: "${WATCHTOWER_NOTIFICATION_URL}"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    restart: unless-stopped
+
+{% endif %}
+networks: {}

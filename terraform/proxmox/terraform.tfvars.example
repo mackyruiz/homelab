@@ -1,0 +1,7 @@
+proxmox_api_token_id     = "root@pam!terraform"
+proxmox_api_token_secret = "paste-token-secret-here"
+proxmox_ssh_username     = "root"
+proxmox_ssh_private_key  = "~/.ssh/id_ed25519"
+dns_tsig_key_algorithm   = "hmac-sha256"
+dns_tsig_key_secret      = "paste-rndc-key-secret-here"
+proxmox_oidc_client_secret = "paste-authentik-proxmox-client-secret-here"

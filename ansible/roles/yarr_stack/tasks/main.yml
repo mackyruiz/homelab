@@ -1,0 +1,191 @@
+---
+- name: Ensure compose root exists
+  ansible.builtin.file:
+    path: "{{ docker_config_dir }}"
+    state: directory
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0755"
+
+- name: Ensure runtime directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0755"
+  loop:
+    - "{{ docker_config_dir }}/config"
+    - "{{ docker_config_dir }}/config/plex"
+    - "{{ docker_config_dir }}/config/qbittorrent"
+    - "{{ docker_config_dir }}/config/sonarr"
+    - "{{ docker_config_dir }}/config/radarr"
+    - "{{ docker_config_dir }}/config/prowlarr"
+    - "{{ docker_config_dir }}/config/gluetun"
+    - "{{ docker_config_dir }}/config/homarr"
+
+- name: Ensure downloads directory exists on NFS share
+  ansible.builtin.file:
+    path: "{{ media_downloads_path }}"
+    state: directory
+    mode: "0775"
+
+- name: Ensure media library directories exist on NFS share
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0775"
+  loop:
+    - "{{ media_movies_path }}"
+    - "{{ media_tv_path }}"
+
+- name: Render docker compose environment file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ docker_config_dir }}/.env"
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0600"
+  diff: false
+
+- name: Render docker compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ docker_config_dir }}/docker-compose.yml"
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0644"
+    backup: true
+
+- name: Restrict forward-auth app ports to the SSO proxy
+  ansible.builtin.include_tasks: sso_firewall.yml
+
+- name: Start media stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker_config_dir }}"
+    project_name: "{{ docker_compose_project_name }}"
+    state: "{{ docker_stack_state }}"
+
+- name: Ensure the Homarr SSO admin group exists
+  ansible.builtin.command:
+    argv: [docker, exec, -i, -e, "HOMARR_ADMIN_GROUP={{ sso_admin_group }}", homarr, node, "-"]
+    stdin: "{{ lookup('ansible.builtin.file', 'homarr-seed-admin-group.js') }}"
+  register: homarr_admin_group
+  until: homarr_admin_group.rc == 0
+  retries: 20
+  delay: 3
+  changed_when: homarr_admin_group.stdout | trim == 'changed'
+  failed_when: homarr_admin_group.rc not in [0, 3]
+
+- name: Wait for qBittorrent Web UI
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ qbittorrent_webui_port }}/api/v2/app/version"
+    method: GET
+    return_content: true
+    status_code:
+      - 200
+      - 403
+  register: qbittorrent_ready
+  retries: 20
+  delay: 3
+  until: qbittorrent_ready.status in [200, 403]
+  tags: [qbittorrent_password]
+
+- name: Try qBittorrent login with desired password
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ qbittorrent_webui_port }}/api/v2/auth/login"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      username: admin
+      password: "{{ vault_qbittorrent_webui_password }}"
+    return_content: true
+    status_code:
+      - 200
+      - 204
+  register: qbittorrent_desired_login
+  failed_when: false
+  no_log: true
+  tags: [qbittorrent_password]
+
+- name: Read qBittorrent startup logs for temporary password
+  ansible.builtin.shell: >-
+    docker logs --tail=200 qbittorrent 2>&1 |
+    sed -n 's/.*temporary password.*: *//p' |
+    tail -n 1
+  register: qbittorrent_temp_password_cmd
+  changed_when: false
+  when: not qbittorrent_desired_login_ok | bool
+  no_log: true
+  tags: [qbittorrent_password]
+
+- name: Set qBittorrent temporary password fact
+  ansible.builtin.set_fact:
+    qbittorrent_temp_password: "{{ qbittorrent_temp_password_cmd.stdout | trim }}"
+  when: not qbittorrent_desired_login_ok | bool
+  no_log: true
+  tags: [qbittorrent_password]
+
+- name: Fail if qBittorrent temporary password could not be found
+  ansible.builtin.fail:
+    msg: "Could not determine qBittorrent temporary password from container logs."
+  when:
+    - not qbittorrent_desired_login_ok | bool
+    - qbittorrent_temp_password | length == 0
+  tags: [qbittorrent_password]
+
+- name: Login to qBittorrent with temporary password
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ qbittorrent_webui_port }}/api/v2/auth/login"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      username: admin
+      password: "{{ qbittorrent_temp_password }}"
+    return_content: true
+    status_code: 200
+  register: qbittorrent_temp_login
+  when: not qbittorrent_desired_login_ok | bool
+  no_log: true
+  tags: [qbittorrent_password]
+
+- name: Set qBittorrent Web UI password
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ qbittorrent_webui_port }}/api/v2/app/setPreferences"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      json: "{{ {'web_ui_password': vault_qbittorrent_webui_password} | to_json }}"
+    headers:
+      Cookie: "{{ qbittorrent_temp_login.cookies_string }}"
+    status_code: 200
+  when: not qbittorrent_desired_login_ok | bool
+  no_log: true
+  tags: [qbittorrent_password]
+
+- name: Read qBittorrent Web UI preferences
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ qbittorrent_webui_port }}/api/v2/app/preferences"
+    headers:
+      Cookie: "{{ qbittorrent_session_cookie }}"
+    return_content: true
+  register: qbittorrent_prefs
+  no_log: true
+  tags: [qbittorrent_password]
+
+- name: Let the SSO proxy bypass the qBittorrent login
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ qbittorrent_webui_port }}/api/v2/app/setPreferences"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      json: "{{ {'bypass_auth_subnet_whitelist_enabled': true, 'bypass_auth_subnet_whitelist': yarr_sso_proxy_ip ~ '/32'} | to_json }}"
+    headers:
+      Cookie: "{{ qbittorrent_session_cookie }}"
+    status_code: 200
+  when: >-
+    not qbittorrent_prefs.json.bypass_auth_subnet_whitelist_enabled
+    or qbittorrent_prefs.json.bypass_auth_subnet_whitelist != yarr_sso_proxy_ip ~ '/32'
+  changed_when: true
+  no_log: true
+  tags: [qbittorrent_password]

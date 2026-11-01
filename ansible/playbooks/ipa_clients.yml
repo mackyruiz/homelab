@@ -1,0 +1,6 @@
+---
+- name: Enroll hosts in FreeIPA
+  hosts: "{{ ipa_enroll_target | default('ipa_clients') }}"
+  become: true
+  roles:
+    - freeipa_client

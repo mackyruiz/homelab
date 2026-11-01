@@ -1,0 +1,10 @@
+services:
+  vaultwarden:
+    image: vaultwarden/server:{{ vaultwarden_tag }}
+    container_name: vaultwarden
+    env_file: .env
+    ports:
+      - "{{ vaultwarden_http_port }}:80"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped

@@ -1,0 +1,61 @@
+---
+- name: Assert the platform and hostname are enrollable
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family in ['Debian', 'RedHat']
+      - ipa_client_fqdn is match('^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$')
+      - ipa_client_fqdn.endswith('.' ~ ipa_domain)
+    fail_msg: "Cannot enroll {{ inventory_hostname }}: needs Debian/RedHat family and a lowercase FQDN under {{ ipa_domain }} (got '{{ ipa_client_fqdn }}'). Set ipa_client_fqdn."
+
+- name: Check that the FreeIPA server resolves
+  ansible.builtin.command: getent hosts {{ ipa_server_fqdn }}
+  register: ipa_server_lookup
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Fail if the FreeIPA server does not resolve
+  ansible.builtin.fail:
+    msg: "{{ inventory_hostname }} cannot resolve {{ ipa_server_fqdn }}. Point its DNS at {{ hostvars[groups['dns_servers'][0]].ansible_host }} (search domain {{ ipa_domain }}) and rerun."
+  when: ipa_server_lookup.rc != 0
+
+- name: Check for cloud-init
+  ansible.builtin.stat:
+    path: /etc/cloud/cloud.cfg.d
+  register: ipa_cloud_cfg_d
+
+- name: Keep cloud-init from rewriting the hostname
+  ansible.builtin.copy:
+    dest: /etc/cloud/cloud.cfg.d/99-homelab-hostname.cfg
+    content: |
+      preserve_hostname: true
+    mode: "0644"
+  when: ipa_cloud_cfg_d.stat.isdir | default(false)
+
+- name: Install FreeIPA client (Debian family)
+  ansible.builtin.apt:
+    name: freeipa-client
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Install FreeIPA client (RedHat family)
+  ansible.builtin.dnf:
+    name: ipa-client
+    state: present
+  when: ansible_facts.os_family == 'RedHat'
+
+- name: Enroll in FreeIPA
+  ansible.builtin.command: >-
+    ipa-client-install --unattended
+    --server {{ ipa_server_fqdn }} --domain {{ ipa_domain }} --realm {{ ipa_realm }}
+    --hostname {{ ipa_client_fqdn }}
+    --principal admin --password {{ vault_ipa_admin_password }}
+    --mkhomedir --no-ntp --no-dns-sshfp --force-join
+  args:
+    creates: /etc/ipa/default.conf
+  no_log: true
+
+- name: Apply the IPA SSH policy
+  ansible.builtin.include_tasks: sshd.yml

@@ -1,0 +1,26 @@
+---
+- name: Install required bind9 packages
+  ansible.builtin.apt:
+    pkg:
+      - bind9
+      - bind9utils
+      - bind9-doc
+      - dnsutils
+    state: latest
+    update_cache: true
+
+- name: Install bind9 configuration and zone files
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+  loop:
+    - { src: named, dest: /etc/default/named }
+    - { src: named.conf.options, dest: /etc/bind/named.conf.options }
+    - { src: named.conf.local, dest: /etc/bind/named.conf.local }
+    - { src: db.example.com, dest: /etc/bind/db.example.com }
+  notify: Restart named
+
+- name: Allow bind9 through UFW
+  community.general.ufw:
+    rule: allow
+    name: bind9

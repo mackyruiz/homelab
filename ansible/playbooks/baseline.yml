@@ -1,0 +1,12 @@
+---
+- name: Baseline for Proxmox VMs
+  hosts: proxmox_vms
+  become: true
+  roles:
+    - common
+
+- name: Docker on Proxmox VMs
+  hosts: proxmox_vms:!freeipa_servers
+  become: true
+  roles:
+    - docker

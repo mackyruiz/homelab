@@ -1,0 +1,31 @@
+---
+- name: Configure Raspberry Pis
+  hosts: pis
+  become: true
+  pre_tasks:
+    - name: Allow passwordless sudo for the admin user
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ admin_user }}"
+        content: "{{ admin_user }} ALL=(ALL) NOPASSWD:ALL\n"
+        owner: root
+        group: root
+        mode: "0440"
+        validate: /usr/sbin/visudo -cf %s
+
+    - name: Update apt repo and cache
+      ansible.builtin.apt:
+        update_cache: true
+        force_apt_get: true
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+        force_apt_get: true
+  roles:
+    - nfs_mount
+  tasks:
+    - name: Install Raspberry Pi packages
+      ansible.builtin.apt:
+        name: linux-modules-extra-raspi
+        state: present

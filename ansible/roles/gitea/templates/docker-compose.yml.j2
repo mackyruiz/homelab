@@ -1,0 +1,27 @@
+networks:
+  gitea:
+    external: false
+
+services:
+  server:
+    image: {{ gitea_image }}
+    container_name: gitea
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      # Behind Caddy: OIDC redirect URIs are built from ROOT_URL.
+      - GITEA__server__ROOT_URL=https://{{ gitea_fqdn }}/
+      # An SSO login whose username matches a local account is linked to it.
+      - GITEA__oauth2_client__ACCOUNT_LINKING=auto
+      - GITEA__oauth2_client__ENABLE_AUTO_REGISTRATION=true
+      - GITEA__oauth2_client__USERNAME=nickname
+    restart: always
+    networks:
+      - gitea
+    volumes:
+      - ./gitea:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "{{ gitea_http_port }}:3000"
+      - "{{ gitea_ssh_port }}:22"
