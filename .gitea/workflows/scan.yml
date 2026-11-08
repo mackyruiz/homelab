@@ -23,7 +23,9 @@ jobs:
           set -eu
           case $(uname -m) in aarch64) ARCH=ARM64 ;; x86_64) ARCH=64bit ;; *) echo "unknown arch $(uname -m)"; exit 1 ;; esac
           # curl (not wget) ships in node:22-bookworm; -f fails on 404 instead of saving "Not Found"
-          curl -fsSL -o /tmp/trivy.tgz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${ARCH}.tar.gz"
+          # --retry + timeouts: Pi egress to github occasionally stalls (run #14: curl 28 after 300s)
+          curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 240 \
+            -o /tmp/trivy.tgz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${ARCH}.tar.gz"
           # arm64 is the real runner arch; the checksum only matches the right asset, wrong arch fails here
           echo "${TRIVY_SHA256}  /tmp/trivy.tgz" | sha256sum -c -
           tar -xzf /tmp/trivy.tgz -C /usr/local/bin trivy
