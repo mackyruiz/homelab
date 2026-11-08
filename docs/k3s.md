@@ -225,11 +225,13 @@ flowchart TD
 | Replicas | 2 (StatefulSet) | 1 |
 | Image | `gitea/act_runner:0.6.1` + `docker:28.5.2-dind` | `gitea/runner:5.2.4` |
 | Labels | `ubuntu-latest`, `ubuntu-24.04` (both `node:22-bookworm`) | `k3s-arm64` (`python:3.13.18-alpine3.23`) |
-| Registered for | The whole Gitea instance | One repository |
+| Registered for | The whole Gitea instance | The whole instance too, despite the dedicated namespace (verified 2026-11-08: it serves `publish` of `homelab` and `debug-log` of every repo) |
 | Job isolation | Containers inside a privileged dind sidecar | One pod per job, RBAC limited to its own namespace |
-| Use for | General CI, anything that needs `docker` | Jobs that handle credentials; the `publish` workflow of this repo |
+| Use for | General CI, anything that needs `docker`; also `debug-log` (see below) | The `publish` workflow of this repo |
 
 Both are arm64 only: images that ship only for amd64 will not run. Both keep `.runner` on a 1 Gi `local-path` volume, so a restarted pod keeps its registration and does not appear twice in Gitea.
+
+**2026-11-08: `gitea-runner-k8s` is scaled to 0.** Its daemon hangs a worker on some `workflow_run`-triggered jobs (both `debug-log` dumps of the day died right after `Creating 1 workers for 1 executors`), and with `capacity: 1` the hung worker stops the daemon fetching anything else - `publish` included. Cancel the leftover `Waiting` `debug-log` runs in the Actions UI (six were queued before this change, they still carry `runs-on: k3s-arm64`), then `kubectl -n gitea-runner-k8s scale sts runner --replicas=1`.
 
 Use it from any repo (Actions is on by default in Gitea 1.27):
 
@@ -248,7 +250,7 @@ The registration token is a Secret in `k3s-fleet` (SOPS-encrypted) and is only u
 
 The `publish` workflow (`.gitea/workflows/publish.yml`) mirrors this repo to GitHub with secrets stripped (`publish/sanitize.py`, then `gitleaks`). Keep new documentation free of credentials and anything the rules in `publish/rules.toml` would flag.
 
-The `scan` workflow (`.gitea/workflows/scan.yml`) runs `trivy fs --scanners secret,misconfig --exit-code 1 --severity HIGH,CRITICAL` on every push/PR to main. It overrides the job image with `container: ghcr.io/aquasecurity/trivy:<version>` and fetches the tree from Gitea's archive endpoint, so it needs no github.com egress (flaky from the Pis, see Troubleshooting) and the only download per run is the trivy checks bundle from mirror.gcr.io. Accepted-risk exclusions go in a `.trivyignore` file at the repo root. `debug-log.yml` dumps the raw logs of any failed `scan` run (visible in its own Actions run) using the built-in `GITHUB_TOKEN` - useful because the API log route needs a personal token.
+The `scan` workflow (`.gitea/workflows/scan.yml`) runs `trivy fs --scanners secret,misconfig --exit-code 1 --severity HIGH,CRITICAL` on every push/PR to main. It overrides the job image with `container: ghcr.io/aquasecurity/trivy:<version>` and fetches the tree from Gitea's archive endpoint, so it needs no github.com egress (flaky from the Pis, see Troubleshooting) and the only download per run is the trivy checks bundle from mirror.gcr.io. Accepted-risk exclusions go in a `.trivyignore` file at the repo root. `debug-log.yml` dumps the raw logs of a failed `scan` run (visible in its own Actions run) using the built-in `GITHUB_TOKEN` and the web log route `<job html_url>/logs` - the API route needs a personal token, the web route accepts the job token. It runs on `ubuntu-latest`: Gitea 1.27 queues a `workflow_run` job **even when the job-level `if: ...conclusion == 'failure'` is false**, so the script re-reads the triggering run's conclusion from the API and exits 0 unless it failed (the `if` is kept for GitHub parity).
 
 The `scan` workflow only sees the repos. For the live cluster, `k3s-fleet/apps/trivy-scan/` runs `trivy k8s --report summary --severity HIGH,CRITICAL --ignore-unfixed --disable-node-collector` as a CronJob (Mondays 04:00): workload image CVEs, misconfigurations, secrets and an RBAC assessment of every role in the cluster. `kubectl -n trivy-scan logs job/<name>` is the report; no alerting yet. Notes from making it work:
 - RBAC is a dedicated ClusterRole (get/list on the resources trivy lists), **not** `view`, and deliberately **excludes `secrets`** - the values in this cluster are SOPS-decrypted runtime material and the scanned image is third-party.
@@ -336,6 +338,8 @@ Flux bootstraps again against the existing `k3s-fleet` repo and syncs it, so all
 | Pod cannot resolve `gitea.example.com` | Pod DNS must go to nas: check `/etc/rancher/k3s/resolv.conf` on the node and restart K3s. |
 | Workflow step downloading from `github.com` fails with `curl: (28) SSL connection timeout` | Egress from the Pis to github.com stalls mid-handshake (docker.io and mirror.gcr.io keep working). Do not rely on github release tarballs in workflows: run tools as images (`container:` override, cached on the runner host) and fetch repo content from Gitea's LAN archive endpoint. See `.gitea/workflows/scan.yml`. |
 | `trivy-k8s-scan` job fails: `context "<name>" does not exist` or `loading node config for "<node>": unknown` | The positional arg to `trivy k8s` is a kube *context*, not `cluster`; and the image ignores the mounted ServiceAccount - the cronjob builds a kubeconfig from the projected token. `unknown` is node-collector failing to parse the node layout: k3s is unsupported there, keep `--disable-node-collector`. See `apps/trivy-scan/cronjob.yaml`. |
+| `k3s-arm64` jobs sit `Waiting` forever ("No matching online runner with label") although the runner pod is `Running`, and the runner log stops at `Creating 1 workers for 1 executors` | act_runner 5.2.4 k8s runtime hangs the job worker on some `workflow_run`-triggered jobs; with `capacity: 1` the daemon stops polling, so its whole queue (incl. `publish`) stalls. Scale the sts to 0, cancel the queued runs in the Actions UI (a restarted runner re-picks them and hangs again), scale back. Keep `debug-log` off this runner. |
+| A `debug-log` run starts after a *successful* scan, and the dump step ends with `conclusion=success — nothing to dump` | Gitea 1.27 queues `workflow_run` jobs regardless of the job-level `if:` gate (see the `debug-log.yml` comment). The in-step API check is the real gate; green run with that line is the correct outcome. |
 
 ## Known gaps
 

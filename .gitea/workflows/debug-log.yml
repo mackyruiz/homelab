@@ -16,18 +16,22 @@ defaults:
 jobs:
   logs:
     if: ${{ gitea.event_name == 'workflow_dispatch' || gitea.event.workflow_run.conclusion == 'failure' }}
-    runs-on: k3s-arm64          # credentials in play -> repo-scoped runner, per docs
+    # 2026-11-08: act_runner 5.2.4 k8s runtime hangs the whole k3s-arm64 queue on
+    # these dump jobs, and Gitea 1.27 queues this job even when the job-level `if`
+    # is false, so the gate is re-checked against the API below. Docker runner only.
+    runs-on: ubuntu-latest
     steps:
       - name: Dump raw logs of the triggering run
         run: |
           set -eu
           RUN_ID="${{ inputs.run_id || gitea.event.workflow_run.id }}"
-          api() { curl -sf -H "Authorization: token $GITHUB_TOKEN" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY$1"; }
-          api "/actions/runs/$RUN_ID/jobs" | python3 -c '
-          import json,sys
-          for j in json.load(sys.stdin).get("jobs",[]):
-              print(j["html_url"] + "/logs")' | while read -r url; do
+          API_BASE="${GITHUB_API_URL:-$GITHUB_SERVER_URL/api/v1}"
+          api() { curl -sf -H "Authorization: token $GITHUB_TOKEN" "$API_BASE/repos/$GITHUB_REPOSITORY$1"; }
+          if [ "${{ gitea.event_name }}" = "workflow_run" ]; then
+            CONC=$(api "/actions/runs/$RUN_ID" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(JSON.parse(d).conclusion))')
+            if [ "$CONC" != "failure" ]; then echo "triggering run conclusion=$CONC — nothing to dump"; exit 0; fi
+          fi
+          api "/actions/runs/$RUN_ID/jobs" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{for(const j of JSON.parse(d).jobs)console.log(j.html_url+"/logs")})' | while read -r url; do
             echo "=== $url ==="
-            curl -sf -H "Authorization: token $GITHUB_TOKEN" "$url" \
-              | sed -n '1,220p'
+            curl -sf -H "Authorization: token $GITHUB_TOKEN" "$url" | sed -n '1,220p'
           done
