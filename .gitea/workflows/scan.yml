@@ -1,0 +1,28 @@
+name: scan
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: sh
+
+jobs:
+  trivy:
+    runs-on: ubuntu-latest          # dind runners: actions/checkout works, docker works
+    env:
+      TRIVY_VERSION: "0.67.0"       # pin like you pinned GITLEAKS_VERSION
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install trivy
+        run: |
+          set -eu
+          wget -qO /tmp/trivy.tgz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          tar -xzf /tmp/trivy.tgz -C /usr/local/bin trivy
+
+      - name: Secrets + IaC misconfig
+        run: trivy fs --scanners secret,misconfig --exit-code 1 --severity HIGH,CRITICAL .
+
