@@ -10,3 +10,5 @@ RUN xcaddy build \
 
 FROM caddy:2
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+# caddy:2 already ships cap_net_bind_service + USER caddy; restate explicitly for DS-0002
+USER caddy
