@@ -11,25 +11,26 @@ defaults:
 
 jobs:
   trivy:
-    runs-on: ubuntu-latest          # dind runners: actions/checkout works, docker works
-    env:
-      TRIVY_VERSION: "0.76.2"       # v0.67.0 does not exist upstream; verified tag
-      TRIVY_SHA256: ab9d51f86e6a5fb936f605faff6b593ac51bc378fff4d3e8b9d58358b9c367c3  # Linux-ARM64 tarball
+    runs-on: ubuntu-latest
+    # Run inside the trivy image itself: no per-run binary download from github.com
+    # (Pi egress to github.com stalls; run #14/#17 both died with curl 28).
+    # Image is cached on the runner host after the first pull; digest pin in k3s-fleet later.
+    container:
+      image: ghcr.io/aquasecurity/trivy:0.76.2
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install trivy
+      - name: Fetch source
+        # LAN archive from Gitea itself (http://10.0.0.225:3000) - no internet needed.
+        # busybox wget/tar ship in the trivy image; no git, so actions/checkout is not used.
         run: |
           set -eu
-          case $(uname -m) in aarch64) ARCH=ARM64 ;; x86_64) ARCH=64bit ;; *) echo "unknown arch $(uname -m)"; exit 1 ;; esac
-          # curl (not wget) ships in node:22-bookworm; -f fails on 404 instead of saving "Not Found"
-          # --retry + timeouts: Pi egress to github occasionally stalls (run #14: curl 28 after 300s)
-          curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 240 \
-            -o /tmp/trivy.tgz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${ARCH}.tar.gz"
-          # arm64 is the real runner arch; the checksum only matches the right asset, wrong arch fails here
-          echo "${TRIVY_SHA256}  /tmp/trivy.tgz" | sha256sum -c -
-          tar -xzf /tmp/trivy.tgz -C /usr/local/bin trivy
-          trivy --version
+          REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-main}}"
+          wget -qO /tmp/repo.tar.gz "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/archive/$REF.tar.gz"
+          mkdir -p /tmp/src
+          tar -xzf /tmp/repo.tar.gz -C /tmp/src --strip-components=1
 
       - name: Secrets + IaC misconfig
-        run: trivy fs --scanners secret,misconfig --exit-code 1 --severity HIGH,CRITICAL .
+        run: |
+          set -eu
+          cd /tmp/src
+          trivy --version
+          trivy fs --scanners secret,misconfig --exit-code 1 --severity HIGH,CRITICAL .
