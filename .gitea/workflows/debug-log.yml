@@ -16,22 +16,27 @@ defaults:
 jobs:
   logs:
     if: ${{ gitea.event_name == 'workflow_dispatch' || gitea.event.workflow_run.conclusion == 'failure' }}
-    # 2026-11-08: act_runner 5.2.4 k8s runtime hangs the whole k3s-arm64 queue on
-    # these dump jobs, and Gitea 1.27 queues this job even when the job-level `if`
-    # is false, so the gate is re-checked against the API below. Docker runner only.
+    # Gitea 1.27 evaluates this job-level if correctly (verified 2026-11-08), but
+    # NOT before dispatching the task to a runner: while the k3s-arm64 daemon was
+    # hung the jobs sat "Waiting" here anyway. Runs on the docker runner, where
+    # the gate is observed immediately.
     runs-on: ubuntu-latest
     steps:
       - name: Dump raw logs of the triggering run
         run: |
           set -eu
           RUN_ID="${{ inputs.run_id || gitea.event.workflow_run.id }}"
-          API_BASE="${GITHUB_API_URL:-$GITHUB_SERVER_URL/api/v1}"
-          api() { curl -sf -H "Authorization: token $GITHUB_TOKEN" "$API_BASE/repos/$GITHUB_REPOSITORY$1"; }
-          if [ "${{ gitea.event_name }}" = "workflow_run" ]; then
-            CONC=$(api "/actions/runs/$RUN_ID" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(JSON.parse(d).conclusion))')
-            if [ "$CONC" != "failure" ]; then echo "triggering run conclusion=$CONC — nothing to dump"; exit 0; fi
-          fi
-          api "/actions/runs/$RUN_ID/jobs" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{for(const j of JSON.parse(d).jobs)console.log(j.html_url+"/logs")})' | while read -r url; do
+          API_BASE="${GITHUB_API_URL:-${GITHUB_SERVER_URL:-http://10.0.0.225:3000/api/v1}}"
+          echo "API_BASE=$API_BASE RUN_ID=$RUN_ID"
+          api() { curl -sS -H "Authorization: token $GITHUB_TOKEN" "$API_BASE/repos/$GITHUB_REPOSITORY$1"; }
+          api "/actions/runs/$RUN_ID/jobs" | node -e '
+          let d = "";
+          process.stdin.on("data", c => d += c).on("end", () => {
+            let o;
+            try { o = JSON.parse(d); }
+            catch { console.error("bad json from api:", d.slice(0, 300)); process.exit(1); }
+            for (const j of o.jobs) console.log(j.html_url + "/logs");
+          });' | while read -r url; do
             echo "=== $url ==="
-            curl -sf -H "Authorization: token $GITHUB_TOKEN" "$url" | sed -n '1,220p'
+            curl -sS -H "Authorization: token $GITHUB_TOKEN" "$url" | sed -n '1,220p'
           done
