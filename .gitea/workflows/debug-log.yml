@@ -26,8 +26,8 @@ jobs:
           api "/actions/runs/$RUN_ID/jobs" | python3 -c '
           import json,sys
           for j in json.load(sys.stdin).get("jobs",[]):
-              print(j["run_url"] + "/raw/logs/" + str(j["job_id"]))' | while read -r url; do
+              print(j["html_url"] + "/logs")' | while read -r url; do
             echo "=== $url ==="
             curl -sf -H "Authorization: token $GITHUB_TOKEN" "$url" \
-              | sed -n '1,200p'
+              | sed -n '1,220p'
           done
