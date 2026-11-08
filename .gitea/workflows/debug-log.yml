@@ -29,6 +29,7 @@ jobs:
         run: |
           set -eu
           RUN_ID="${{ inputs.run_id || gitea.event.workflow_run.id }}"
+          export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
           API_BASE="${GITHUB_API_URL:-${GITHUB_SERVER_URL:-http://10.0.0.225:3000/api/v1}}"
           echo "API_BASE=$API_BASE RUN_ID=$RUN_ID GITHUB_TOKEN=${GITHUB_TOKEN:+set}${GITHUB_TOKEN:-unset}"
           get() {

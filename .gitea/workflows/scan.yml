@@ -31,7 +31,7 @@ jobs:
           set -eu
           REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-main}}"
           URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/archive/$REF.tar.gz"
-          echo "GITHUB_TOKEN=${GITHUB_TOKEN:+set}${GITHUB_TOKEN:-unset}"
+          export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"; echo "GITHUB_TOKEN=${GITHUB_TOKEN:+set}${GITHUB_TOKEN:-unset}"
           wget -qO /tmp/repo.tar.gz "$URL" \
             || wget -qO /tmp/repo.tar.gz --header "Authorization: token ${GITHUB_TOKEN:-}" "$URL"
           mkdir -p /tmp/src
