@@ -16,10 +16,13 @@ defaults:
 jobs:
   logs:
     if: ${{ gitea.event_name == 'workflow_dispatch' || gitea.event.workflow_run.conclusion == 'failure' }}
-    # Gitea 1.27 evaluates this job-level if correctly (verified 2026-11-08), but
-    # NOT before dispatching the task to a runner: while the k3s-arm64 daemon was
-    # hung the jobs sat "Waiting" here anyway. Runs on the docker runner, where
-    # the gate is observed immediately.
+    # Gitea 1.27 evaluates this job-level if correctly, but only AFTER dispatching the
+    # task to a runner: a stuck runner turns "would be skipped" into "Waiting forever".
+    # Runs on the docker runner (the k3s-arm64 runner hangs on workflow_run jobs).
+    # Note: Gitea 1.27 does NOT set GITHUB_TOKEN on workflow_run-triggered jobs, so
+    # dumps rely on the repo being public (the web log route is public for public
+    # repos). For private repos the auto-dump ends in "bad json"; read the log in the
+    # Actions UI instead.
     runs-on: ubuntu-latest
     steps:
       - name: Dump raw logs of the triggering run
@@ -27,9 +30,15 @@ jobs:
           set -eu
           RUN_ID="${{ inputs.run_id || gitea.event.workflow_run.id }}"
           API_BASE="${GITHUB_API_URL:-${GITHUB_SERVER_URL:-http://10.0.0.225:3000/api/v1}}"
-          echo "API_BASE=$API_BASE RUN_ID=$RUN_ID"
-          api() { curl -sS -H "Authorization: token $GITHUB_TOKEN" "$API_BASE/repos/$GITHUB_REPOSITORY$1"; }
-          api "/actions/runs/$RUN_ID/jobs" | node -e '
+          echo "API_BASE=$API_BASE RUN_ID=$RUN_ID GITHUB_TOKEN=${GITHUB_TOKEN:+set}${GITHUB_TOKEN:-unset}"
+          get() {
+            if [ -n "${GITHUB_TOKEN:-}" ]; then
+              curl -sS -H "Authorization: token $GITHUB_TOKEN" "$1"
+            else
+              curl -sS "$1"
+            fi
+          }
+          get "$API_BASE/repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/jobs" | node -e '
           let d = "";
           process.stdin.on("data", c => d += c).on("end", () => {
             let o;
@@ -38,5 +47,5 @@ jobs:
             for (const j of o.jobs) console.log(j.html_url + "/logs");
           });' | while read -r url; do
             echo "=== $url ==="
-            curl -sS -H "Authorization: token $GITHUB_TOKEN" "$url" | sed -n '1,220p'
+            get "$url" | sed -n '1,220p'
           done

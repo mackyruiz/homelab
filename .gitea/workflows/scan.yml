@@ -19,12 +19,18 @@ jobs:
       image: ghcr.io/aquasecurity/trivy:0.76.2
     steps:
       - name: Fetch source
-        # LAN archive from Gitea itself (http://10.0.0.225:3000) - no internet needed.
-        # busybox wget/tar ship in the trivy image; no git, so actions/checkout is not used.
+        # LAN archive from Gitea itself - no internet needed. busybox wget/tar ship in
+        # the trivy image; no git, so actions/checkout is not used. Public repos answer
+        # the archive endpoint anonymously (Gitea 1.27 gives NO GITHUB_TOKEN to
+        # workflow_run-triggered jobs - push jobs get one, but don't depend on it);
+        # private repos fall back to the push-event job token.
         run: |
           set -eu
           REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-main}}"
-          wget -qO /tmp/repo.tar.gz "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/archive/$REF.tar.gz"
+          URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/archive/$REF.tar.gz"
+          echo "GITHUB_TOKEN=${GITHUB_TOKEN:+set}${GITHUB_TOKEN:-unset}"
+          wget -qO /tmp/repo.tar.gz "$URL" \
+            || wget -qO /tmp/repo.tar.gz --header "Authorization: token ${GITHUB_TOKEN:-}" "$URL"
           mkdir -p /tmp/src
           tar -xzf /tmp/repo.tar.gz -C /tmp/src --strip-components=1
 
