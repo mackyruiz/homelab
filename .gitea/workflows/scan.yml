@@ -13,16 +13,21 @@ jobs:
   trivy:
     runs-on: ubuntu-latest          # dind runners: actions/checkout works, docker works
     env:
-      TRIVY_VERSION: "0.67.0"       # pin like you pinned GITLEAKS_VERSION
+      TRIVY_VERSION: "0.76.2"       # v0.67.0 does not exist upstream; verified tag
+      TRIVY_SHA256: ab9d51f86e6a5fb936f605faff6b593ac51bc378fff4d3e8b9d58358b9c367c3  # Linux-ARM64 tarball
     steps:
       - uses: actions/checkout@v4
 
       - name: Install trivy
         run: |
           set -eu
-          wget -qO /tmp/trivy.tgz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          case $(uname -m) in aarch64) ARCH=ARM64 ;; x86_64) ARCH=64bit ;; *) echo "unknown arch $(uname -m)"; exit 1 ;; esac
+          # curl (not wget) ships in node:22-bookworm; -f fails on 404 instead of saving "Not Found"
+          curl -fsSL -o /tmp/trivy.tgz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${ARCH}.tar.gz"
+          # arm64 is the real runner arch; the checksum only matches the right asset, wrong arch fails here
+          echo "${TRIVY_SHA256}  /tmp/trivy.tgz" | sha256sum -c -
           tar -xzf /tmp/trivy.tgz -C /usr/local/bin trivy
+          trivy --version
 
       - name: Secrets + IaC misconfig
         run: trivy fs --scanners secret,misconfig --exit-code 1 --severity HIGH,CRITICAL .
-

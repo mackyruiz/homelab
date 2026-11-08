@@ -1,0 +1,33 @@
+name: debug-log
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Actions run id to dump logs for"
+        required: true
+  workflow_run:
+    workflows: [scan]
+    types: [completed]
+
+defaults:
+  run:
+    shell: sh
+
+jobs:
+  logs:
+    if: ${{ gitea.event_name == 'workflow_dispatch' || gitea.event.workflow_run.conclusion == 'failure' }}
+    runs-on: k3s-arm64          # credentials in play -> repo-scoped runner, per docs
+    steps:
+      - name: Dump raw logs of the triggering run
+        run: |
+          set -eu
+          RUN_ID="${{ inputs.run_id || gitea.event.workflow_run.id }}"
+          api() { curl -sf -H "Authorization: token $GITHUB_TOKEN" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY$1"; }
+          api "/actions/runs/$RUN_ID/jobs" | python3 -c '
+          import json,sys
+          for j in json.load(sys.stdin).get("jobs",[]):
+              print(j["run_url"] + "/raw/logs/" + str(j["job_id"]))' | while read -r url; do
+            echo "=== $url ==="
+            curl -sf -H "Authorization: token $GITHUB_TOKEN" "$url" \
+              | sed -n '1,200p'
+          done
