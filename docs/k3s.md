@@ -250,6 +250,12 @@ The `publish` workflow (`.gitea/workflows/publish.yml`) mirrors this repo to Git
 
 The `scan` workflow (`.gitea/workflows/scan.yml`) runs `trivy fs --scanners secret,misconfig --exit-code 1 --severity HIGH,CRITICAL` on every push/PR to main. It overrides the job image with `container: ghcr.io/aquasecurity/trivy:<version>` and fetches the tree from Gitea's archive endpoint, so it needs no github.com egress (flaky from the Pis, see Troubleshooting) and the only download per run is the trivy checks bundle from mirror.gcr.io. Accepted-risk exclusions go in a `.trivyignore` file at the repo root. `debug-log.yml` dumps the raw logs of any failed `scan` run (visible in its own Actions run) using the built-in `GITHUB_TOKEN` - useful because the API log route needs a personal token.
 
+The `scan` workflow only sees the repos. For the live cluster, `k3s-fleet/apps/trivy-scan/` runs `trivy k8s --report summary --severity HIGH,CRITICAL --ignore-unfixed --disable-node-collector` as a CronJob (Mondays 04:00): workload image CVEs, misconfigurations, secrets and an RBAC assessment of every role in the cluster. `kubectl -n trivy-scan logs job/<name>` is the report; no alerting yet. Notes from making it work:
+- RBAC is a dedicated ClusterRole (get/list on the resources trivy lists), **not** `view`, and deliberately **excludes `secrets`** - the values in this cluster are SOPS-decrypted runtime material and the scanned image is third-party.
+- `trivy k8s` ignores the auto-mounted ServiceAccount config and demands a kubeconfig: the container builds a throwaway one from the projected SA token at startup. The trailing positional arg is the kube *context* name (`sa`), not a subcommand.
+- `--disable-node-collector` is required on k3s: node-collector only understands kubeadm-style node layouts and dies with `loading node config for "<node>": unknown`. That means k3s *binary* CVEs are out of scan scope - bump the k3s version in `group_vars/k3s_cluster` manually when upgrading (see Known gaps).
+- Fire it by hand after changes: `kubectl -n trivy-scan create job ondemand --from=cronjob/trivy-k8s-scan`.
+
 ## Datastore backup
 
 ```mermaid
@@ -329,6 +335,7 @@ Flux bootstraps again against the existing `k3s-fleet` repo and syncs it, so all
 | The bundled `act_runner:*-dind` image never starts the runner | Its readiness check gives up after about 7 seconds and dockerd needs about 8 on these Pis. The deployed runner uses a separate dind sidecar for that reason; do not switch back. |
 | Pod cannot resolve `gitea.example.com` | Pod DNS must go to nas: check `/etc/rancher/k3s/resolv.conf` on the node and restart K3s. |
 | Workflow step downloading from `github.com` fails with `curl: (28) SSL connection timeout` | Egress from the Pis to github.com stalls mid-handshake (docker.io and mirror.gcr.io keep working). Do not rely on github release tarballs in workflows: run tools as images (`container:` override, cached on the runner host) and fetch repo content from Gitea's LAN archive endpoint. See `.gitea/workflows/scan.yml`. |
+| `trivy-k8s-scan` job fails: `context "<name>" does not exist` or `loading node config for "<node>": unknown` | The positional arg to `trivy k8s` is a kube *context*, not `cluster`; and the image ignores the mounted ServiceAccount - the cronjob builds a kubeconfig from the projected token. `unknown` is node-collector failing to parse the node layout: k3s is unsupported there, keep `--disable-node-collector`. See `apps/trivy-scan/cronjob.yaml`. |
 
 ## Known gaps
 
@@ -336,4 +343,5 @@ Flux bootstraps again against the existing `k3s-fleet` repo and syncs it, so all
 - `local-path` volumes are node-local and not backed up. Only the K3s datastore is.
 - No trusted TLS for `*.k3s.example.com` yet.
 - The dind runners are privileged, and any repo can use them.
+- k3s *binary* CVEs are outside both scanners: unattended-upgrades doesn't see the install-script binary and trivy's node-collector doesn't support k3s. Bumping `k3s` version in `group_vars/k3s_cluster` and re-running `k3s.yml` is a manual, deliberate act (watch the release notes for security fixes).
 - The access token used by `flux bootstrap` stays in Gitea (named `flux-bootstrap-<timestamp>` in labadmin's settings). Flux's deploy key was created with it, so check that Flux still syncs before revoking it.
