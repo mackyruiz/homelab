@@ -49,17 +49,17 @@ flowchart TD
     F --> G
 ```
 
-Role `k3s` runs three task files per node:
+Role `k3s` runs three sets of tasks per node:
 
 ```mermaid
 flowchart LR
-    N["network.yml<br/>NetworkManager static IP<br/>runs detached, then reconnects by IP"] --> G["cgroups.yml<br/>add cgroup_enable=memory to<br/>/boot/firmware/cmdline.txt,<br/>reboot if changed"]
+    N["lan_host network tasks<br/>(include_role lan_host, tasks_from network)<br/>NetworkManager static IP, runs detached,<br/>then reconnects by IP"] --> G["cgroups.yml<br/>add cgroup_enable=memory to<br/>/boot/firmware/cmdline.txt,<br/>reboot if changed"]
     G --> I["install.yml<br/>/etc/rancher/k3s/config.yaml<br/>K3s install script, pinned version"]
 ```
 
 Why each step exists:
 
-- **Static IP.** `nmcli` switches `Wired connection 1` to the fixed address and drops the DHCP lease. The command runs with `async` so the SSH session can die, then the play sets `ansible_host` to the IP and waits for the host. Terraform writes the matching DNS records, because DHCP no longer updates them.
+- **Static IP.** `nmcli` switches `Wired connection 1` to the fixed address and drops the DHCP lease. The command runs with `async` so the SSH session can die, then the play sets `ansible_host` to the IP and waits for the host, and re-reads `ipv4.dns` before asserting that both the address and the resolver are in effect. This code lives in `roles/lan_host/tasks/network.yml` (shared with `onboard.yml`, see [services/host-baseline.md](services/host-baseline.md)); the k3s role only passes `lan_host_ip: "{{ k3s_node_ip }}"` and the `k3s_network` tag. The node keeps its own name: k3s includes just the network tasks, never `lan_host`'s hostname tasks, and Terraform (`dns_a_record_set.k3s_node`) still writes the Pis' DNS records.
 - **Memory cgroup.** Raspberry Pi OS boots with `cgroup_disable=memory`. K3s will not run pods without it, so the later `cgroup_enable=memory` parameter overrides it (one reboot).
 - **Pod DNS.** `/etc/rancher/k3s/resolv.conf` lists only nas (`10.0.0.225`). CoreDNS forwards to it, so pods resolve split-horizon names such as `gitea.example.com`. The router and `8.8.8.8` answer NXDOMAIN for those.
 - **ServiceLB off.** The server config sets `disable: [servicelb]`; MetalLB replaces it.
@@ -248,6 +248,8 @@ The registration token is a Secret in `k3s-fleet` (SOPS-encrypted) and is only u
 
 The `publish` workflow (`.gitea/workflows/publish.yml`) mirrors this repo to GitHub with secrets stripped (`publish/sanitize.py`, then `gitleaks`). Keep new documentation free of credentials and anything the rules in `publish/rules.toml` would flag.
 
+The `scan` workflow (`.gitea/workflows/scan.yml`) runs `trivy fs --scanners secret,misconfig --exit-code 1 --severity HIGH,CRITICAL` on every push/PR to main. It overrides the job image with `container: ghcr.io/aquasecurity/trivy:<version>` and fetches the tree from Gitea's archive endpoint, so it needs no github.com egress (flaky from the Pis, see Troubleshooting) and the only download per run is the trivy checks bundle from mirror.gcr.io. Accepted-risk exclusions go in a `.trivyignore` file at the repo root. `debug-log.yml` dumps the raw logs of any failed `scan` run (visible in its own Actions run) using the built-in `GITHUB_TOKEN` - useful because the API log route needs a personal token.
+
 ## Datastore backup
 
 ```mermaid
@@ -326,6 +328,7 @@ Flux bootstraps again against the existing `k3s-fleet` repo and syncs it, so all
 | HelmRelease times out on first install | Image pulls on the Pis are slow. `flux reconcile helmrelease <name> -n <ns>`; 3 retries are configured. |
 | The bundled `act_runner:*-dind` image never starts the runner | Its readiness check gives up after about 7 seconds and dockerd needs about 8 on these Pis. The deployed runner uses a separate dind sidecar for that reason; do not switch back. |
 | Pod cannot resolve `gitea.example.com` | Pod DNS must go to nas: check `/etc/rancher/k3s/resolv.conf` on the node and restart K3s. |
+| Workflow step downloading from `github.com` fails with `curl: (28) SSL connection timeout` | Egress from the Pis to github.com stalls mid-handshake (docker.io and mirror.gcr.io keep working). Do not rely on github release tarballs in workflows: run tools as images (`container:` override, cached on the runner host) and fetch repo content from Gitea's LAN archive endpoint. See `.gitea/workflows/scan.yml`. |
 
 ## Known gaps
 
