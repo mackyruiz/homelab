@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 750" font-family="sans-serif" font-size="13">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#059669"/>
+    </marker>
+    <marker id="arrT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0d9488"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="750" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="500" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#0f172a">Trivy in the homelab: what gets scanned, when, and with what result</text>
+
+  <!-- column headers -->
+  <text x="145" y="50" text-anchor="middle" font-weight="bold" fill="#475569">Sources (GitOps)</text>
+  <text x="465" y="50" text-anchor="middle" font-weight="bold" fill="#047857">Trivy scans (run on Gitea Actions runners)</text>
+  <text x="815" y="50" text-anchor="middle" font-weight="bold" fill="#475569">Scan targets</text>
+
+  <!-- Workstation -->
+  <rect x="30" y="60" width="230" height="110" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>
+  <text x="145" y="84" text-anchor="middle" font-weight="bold" fill="#0f172a">Workstation "workstation"</text>
+  <text x="145" y="108" text-anchor="middle" font-size="12" fill="#0f172a">~/work/homelab  (terraform + ansible)</text>
+  <text x="145" y="126" text-anchor="middle" font-size="12" fill="#0f172a">~/work/k3s-fleet  (Flux manifests)</text>
+  <text x="145" y="152" text-anchor="middle" font-size="12" fill="#475569">git push</text>
+
+  <!-- B1 push scan -->
+  <rect x="290" y="55" width="350" height="120" rx="8" fill="#f0fdf4" stroke="#059669" stroke-width="1.5"/>
+  <text x="465" y="78" text-anchor="middle" font-weight="bold" fill="#065f46">On push to either repo</text>
+  <text x="465" y="100" text-anchor="middle" font-size="12" fill="#0f172a">trivy fs --scanners secret,misconfig .</text>
+  <text x="465" y="117" text-anchor="middle" font-size="12" fill="#0f172a">trivy config terraform/</text>
+  <text x="465" y="134" text-anchor="middle" font-size="12" fill="#0f172a">trivy image (workload images in k3s-fleet)</text>
+  <text x="465" y="160" text-anchor="middle" font-size="11" fill="#047857">catches: leaked secrets, TF/Ansible/K8s misconfigs</text>
+
+  <!-- k3s target -->
+  <rect x="670" y="55" width="330" height="200" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="835" y="79" text-anchor="middle" font-weight="bold" fill="#0f172a">K3s on Pis  k3s-1..4 (.41-.44)</text>
+  <text x="835" y="103" text-anchor="middle" font-size="12" fill="#0f172a">Traefik ingress  *.k3s.example.com</text>
+  <text x="835" y="121" text-anchor="middle" font-size="12" fill="#0f172a">Flux, VictoriaMetrics, Actions runners</text>
+  <text x="835" y="148" text-anchor="middle" font-size="11" fill="#059669">scanned weekly via kube API (trivy k8s)</text>
+  <text x="835" y="166" text-anchor="middle" font-size="11" fill="#475569">workload images, RBAC, NetworkPolicy,</text>
+  <text x="835" y="183" text-anchor="middle" font-size="11" fill="#475569">ingress exposure, secrets in specs</text>
+  <text x="835" y="230" text-anchor="middle" font-size="11" fill="#475569">Flux syncs k3s-fleet  (dashed arrow below)</text>
+
+  <!-- push arrow -->
+  <line x1="260" y1="115" x2="288" y2="115" stroke="#059669" stroke-width="1.5" marker-end="url(#arrG)"/>
+
+  <!-- B2 image scan -->
+  <rect x="290" y="255" width="350" height="120" rx="8" fill="#f0fdf4" stroke="#0d9488" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="465" y="278" text-anchor="middle" font-weight="bold" fill="#115e59">Scheduled weekly: live k8s cluster</text>
+  <text x="465" y="300" text-anchor="middle" font-size="12" fill="#0f172a">trivy k8s --report summary</text>
+  <text x="465" y="317" text-anchor="middle" font-size="12" fill="#0f172a">CronJob in-cluster (trivy-scan ns)</text>
+  <text x="465" y="334" text-anchor="middle" font-size="11" fill="#475569">weekly summary -&gt; Discord webhook</text>
+  <text x="465" y="351" text-anchor="middle" font-size="11" fill="#0f766e">fix path: commit to k3s-fleet -&gt; Flux reconciles</text>
+
+  <!-- Proxmox target -->
+  <rect x="670" y="270" width="330" height="250" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="835" y="294" text-anchor="middle" font-weight="bold" fill="#0f172a">Proxmox "pve1" .60</text>
+  <g fill="#dbeafe" stroke="#3b82f6">
+    <rect x="682" y="308" width="146" height="42" rx="6"/>
+    <rect x="842" y="308" width="146" height="42" rx="6"/>
+    <rect x="682" y="358" width="146" height="42" rx="6"/>
+    <rect x="842" y="358" width="146" height="42" rx="6"/>
+    <rect x="682" y="408" width="146" height="42" rx="6"/>
+    <rect x="842" y="408" width="146" height="42" rx="6"/>
+    <rect x="682" y="458" width="306" height="42" rx="6"/>
+  </g>
+  <g fill="#0f172a" text-anchor="middle">
+    <text x="755" y="326" font-weight="bold">FreeIPA</text><text x="755" y="342" font-size="10" fill="#475569">VM 301 .31 - OS pkgs, out of scope</text>
+    <text x="915" y="326" font-weight="bold">Authentik</text><text x="915" y="342" font-size="10" fill="#475569">VM 302 .32 - container image</text>
+    <text x="755" y="376" font-weight="bold">Vaultwarden</text><text x="755" y="392" font-size="10" fill="#475569">VM 303 .33 - container image</text>
+    <text x="915" y="376" font-weight="bold">Caddy</text><text x="915" y="392" font-size="10" fill="#475569">VM 304 .34 - custom Dockerfile</text>
+    <text x="755" y="432" font-weight="bold">yarr stack</text><text x="755" y="448" font-size="10" fill="#475569">VM 107 .160 - media images</text>
+    <text x="915" y="432" font-weight="bold">Watchtower</text><text x="915" y="448" font-size="10" fill="#475569">availability, NOT CVEs</text>
+    <text x="835" y="476" font-weight="bold">Ubuntu / Debian hosts</text><text x="835" y="492" font-size="10" fill="#475569">unattended-upgrades + dnf-automatic - OS CVEs, no Trivy</text>
+  </g>
+
+  <!-- arrows B2 -&gt; proxmox images -->
+  <line x1="640" y1="300" x2="668" y2="300" stroke="#0d9488" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrT)"/>
+  <text x="654" y="290" text-anchor="middle" font-size="10" fill="#0d9488">digest diff</text>
+  <line x1="640" y1="340" x2="668" y2="340" stroke="#0d9488" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrT)"/>
+  <text x="654" y="332" text-anchor="middle" font-size="10" fill="#0d9488">docker pull</text>
+
+  <!-- B3 NAS scan -->
+  <rect x="290" y="455" width="350" height="110" rx="8" fill="#f0fdf4" stroke="#0d9488" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="465" y="478" text-anchor="middle" font-weight="bold" fill="#115e59">Scheduled weekly: NAS images</text>
+  <text x="465" y="500" text-anchor="middle" font-size="12" fill="#0f172a">trivy image gitea, uptime-kuma</text>
+  <text x="465" y="517" text-anchor="middle" font-size="12" fill="#0f172a">pulled from pinned digests</text>
+  <text x="465" y="543" text-anchor="middle" font-size="11" fill="#0f766e">fix path: ansible role version bump -&gt; docker.yml</text>
+
+  <!-- NAS target -->
+  <rect x="670" y="545" width="330" height="95" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
+  <text x="835" y="569" text-anchor="middle" font-weight="bold" fill="#0f172a">NAS "nas" .225</text>
+  <text x="835" y="591" text-anchor="middle" font-size="12" fill="#0f172a">Gitea (Docker) - git + Actions + registry</text>
+  <text x="835" y="609" text-anchor="middle" font-size="12" fill="#0f172a">Uptime Kuma - status pings</text>
+  <text x="835" y="629" text-anchor="middle" font-size="11" fill="#b45309">scanned weekly via docker pull</text>
+
+  <!-- arrows B3 -&gt; NAS -->
+  <line x1="640" y1="505" x2="668" y2="585" stroke="#0d9488" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrT)"/>
+  <!-- B3 -&gt; proxmox yarr -->
+  <line x1="640" y1="430" x2="668" y2="429" stroke="#0d9488" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrT)"/>
+  <text x="654" y="422" text-anchor="middle" font-size="10" fill="#0d9488">media</text>
+
+  <!-- flux sync arrow -->
+  <line x1="260" y1="150" x2="668" y2="212" stroke="#475569" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+  <text x="465" y="205" text-anchor="middle" font-size="11" fill="#475569">Flux syncs k3s-fleet to the cluster</text>
+
+  <!-- vertical arrows from scans to results -->
+  <line x1="325" y1="175" x2="325" y2="645" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="325" y1="375" x2="325" y2="645" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="325" y1="565" x2="325" y2="645" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="332" y="225" font-size="10" fill="#94a3b8">results</text>
+
+  <!-- results bar -->
+  <rect x="30" y="650" width="600" height="56" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
+  <text x="330" y="672" text-anchor="middle" font-weight="bold" fill="#92400e">Results / response loop</text>
+  <text x="330" y="692" text-anchor="middle" font-size="11" fill="#0f172a">Actions annotations - .trivyignore accepted risk - --severity HIGH,CRITICAL --ignore-unfixed - optional Kuma ping on fail</text>
+
+  <!-- out of scope -->
+  <rect x="650" y="650" width="350" height="56" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="5,4"/>
+  <text x="825" y="672" text-anchor="middle" font-weight="bold" fill="#475569">Outside Trivy: external exposure</text>
+  <text x="825" y="692" text-anchor="middle" font-size="11" fill="#475569">monthly outside nmap - auth/vault/gitea/uptime are internet-facing</text>
+
+  <!-- legend -->
+  <line x1="40" y1="730" x2="70" y2="730" stroke="#059669" stroke-width="1.5" marker-end="url(#arrG)"/>
+  <text x="80" y="734" font-size="11" fill="#475569">push-triggered</text>
+  <line x1="200" y1="730" x2="230" y2="730" stroke="#0d9488" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrT)"/>
+  <text x="240" y="734" font-size="11" fill="#475569">weekly scheduled</text>
+  <line x1="380" y1="730" x2="410" y2="730" stroke="#475569" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+  <text x="420" y="734" font-size="11" fill="#475569">GitOps sync</text>
+  <line x1="540" y1="730" x2="570" y2="730" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="580" y="734" font-size="11" fill="#475569">findings flow to results</text>
+</svg>
